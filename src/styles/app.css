@@ -1,0 +1,652 @@
+@import './tokens.css';
+
+/* ————— Ground ————— */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  font-family: var(--font-body);
+  font-size: var(--fs-body);
+  line-height: 1.55;
+  color: var(--ink);
+  background-color: var(--marble);
+  background-image: radial-gradient(120% 90% at 50% 0%, var(--marble) 52%, var(--marble-deep) 100%);
+  background-attachment: fixed;
+}
+
+.page {
+  max-width: var(--measure);
+  margin: 0 auto;
+  padding: var(--space-4) var(--space-3) var(--space-5);
+}
+
+/* Visible keyboard focus, everywhere */
+:focus-visible {
+  outline: 2px solid var(--wedgwood);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+
+/* ————— Type utilities ————— */
+.lbl {
+  font-family: var(--font-mono);
+  font-size: var(--fs-caption);
+  font-weight: 500;
+  letter-spacing: 0.17em;
+  text-transform: uppercase;
+  color: var(--limestone);
+}
+
+.lbl--ink {
+  color: var(--ink);
+}
+
+.lbl--bronze {
+  color: var(--bronze);
+}
+
+.mono {
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+}
+
+.num {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.pos { color: var(--laurel); }
+.neg { color: var(--terracotta); }
+
+/* ————— Masthead: pediment, inscription, entablature ————— */
+.masthead {
+  text-align: center;
+  margin-bottom: var(--space-3);
+}
+
+.masthead__pediment {
+  display: block;
+  margin: 0 auto var(--space-2);
+  color: var(--ink);
+}
+
+.masthead__title {
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: var(--fs-title);
+  letter-spacing: 0.25em;
+  text-transform: uppercase;
+  text-indent: 0.25em; /* balances the trailing letter-space on the axis */
+  line-height: 1.15;
+  padding: 0.55em 0 0.5em;
+  border-top: 1px solid var(--ink);
+  border-bottom: 1px solid var(--ink);
+  position: relative;
+}
+
+/* the inner pair of the double rule, stepped inward */
+.masthead__title::before,
+.masthead__title::after {
+  content: '';
+  position: absolute;
+  left: 6%;
+  right: 6%;
+  height: 1px;
+  background: var(--line);
+}
+
+.masthead__title::before { top: 4px; }
+.masthead__title::after { bottom: 4px; }
+
+.masthead__sub {
+  margin-top: var(--space-2);
+  font-family: var(--font-mono);
+  font-size: var(--fs-caption);
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--bronze);
+}
+
+.meander {
+  display: block;
+  margin: var(--space-3) auto;
+  color: var(--bronze);
+}
+
+/* ————— Section heads & column dividers ————— */
+.section {
+  margin-top: var(--space-4);
+}
+
+.section-head {
+  text-align: center;
+  margin-bottom: var(--space-3);
+}
+
+.section-head__numeral {
+  font-family: var(--font-display);
+  font-size: var(--fs-label);
+  letter-spacing: 0.3em;
+  text-indent: 0.3em;
+  color: var(--gilt);
+  text-transform: uppercase;
+}
+
+.section-head__title {
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: var(--fs-section);
+  letter-spacing: 0.04em;
+  margin-top: 0.25rem;
+}
+
+.section-head__note {
+  margin-top: 0.4rem;
+  font-size: var(--fs-body);
+  font-style: italic;
+  color: var(--bronze);
+  max-width: 46rem;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.divider {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: var(--space-4) 0 0;
+}
+
+.divider::before,
+.divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--line);
+}
+
+.divider__flute {
+  display: flex;
+  gap: 4px;
+  height: 18px;
+}
+
+.divider__flute i {
+  width: 1px;
+  height: 100%;
+  background: var(--bronze);
+}
+
+/* ————— Panels: stone slabs ————— */
+.panel {
+  background: var(--stone);
+  border: 1px solid var(--line);
+  border-top: 2px solid var(--wedgwood);
+  box-shadow: var(--panel-shadow);
+  padding: var(--space-3);
+}
+
+.panel--laurel { border-top-color: var(--laurel); }
+.panel--terracotta { border-top-color: var(--terracotta); }
+.panel--quiet { border-top-color: var(--line); }
+
+.panel__title {
+  font-family: var(--font-display);
+  font-size: 1.1875rem;
+  font-weight: 600;
+  margin-bottom: var(--space-1);
+}
+
+/* ————— Grids ————— */
+.grid-2 {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3);
+}
+
+.grid-4 {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-2);
+}
+
+.grid-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 7fr) minmax(0, 5fr);
+  gap: var(--space-3);
+  align-items: start;
+}
+
+@media (max-width: 56rem) {
+  .grid-2,
+  .grid-hero {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .grid-4 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 34rem) {
+  .grid-4 {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* ————— Controls ————— */
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  justify-content: center;
+  align-items: center;
+  margin-top: var(--space-3);
+}
+
+.btn {
+  font-family: var(--font-mono);
+  font-size: var(--fs-label);
+  font-weight: 600;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--stone);
+  background: var(--wedgwood);
+  border: 1px solid var(--wedgwood);
+  min-height: 44px;
+  padding: 0 var(--space-3);
+  cursor: pointer;
+  transition: background-color 120ms ease;
+}
+
+.btn:hover { background: #33506a; }
+
+.btn--outline {
+  color: var(--wedgwood);
+  background: transparent;
+}
+
+.btn--outline:hover {
+  background: rgba(62, 92, 118, 0.08);
+}
+
+.btn:disabled {
+  opacity: 0.55;
+  cursor: wait;
+}
+
+.key-input {
+  font-family: var(--font-mono);
+  font-size: var(--fs-label);
+  letter-spacing: 0.05em;
+  color: var(--ink);
+  background: var(--stone);
+  border: 1px solid var(--line);
+  min-height: 44px;
+  padding: 0 var(--space-2);
+  width: 17rem;
+  max-width: 100%;
+}
+
+.key-input::placeholder {
+  color: var(--limestone);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  font-size: var(--fs-caption);
+}
+
+.statusline {
+  text-align: center;
+  margin-top: var(--space-2);
+  font-family: var(--font-mono);
+  font-size: var(--fs-caption);
+  letter-spacing: 0.1em;
+  color: var(--bronze);
+  min-height: 1.2em;
+}
+
+.statusline--error { color: var(--terracotta); }
+.statusline--live { color: var(--laurel); }
+
+/* ————— Tables ————— */
+.table-wrap {
+  overflow-x: auto;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9375rem;
+}
+
+th {
+  font-family: var(--font-mono);
+  font-size: var(--fs-caption);
+  font-weight: 500;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--limestone);
+  text-align: left;
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid var(--bronze);
+  white-space: nowrap;
+}
+
+td {
+  padding: 0.55rem 0.75rem;
+  border-bottom: 1px solid var(--line);
+  vertical-align: baseline;
+}
+
+th.r, td.r { text-align: right; }
+
+td.num, th.r { font-variant-numeric: tabular-nums; }
+
+/* ————— Compass ————— */
+.compass-svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 1 / 1; /* the compass stays square at every width */
+}
+
+.regime-line {
+  margin-top: var(--space-2);
+  text-align: center;
+}
+
+.regime-line strong {
+  font-family: var(--font-display);
+  font-size: 1.125rem;
+  font-weight: 600;
+}
+
+/* ————— Gears ————— */
+.gear {
+  border: 1px solid var(--line);
+  border-top: 2px solid var(--wedgwood);
+  background: var(--stone);
+  box-shadow: var(--panel-shadow);
+  padding: var(--space-2);
+}
+
+.gear + .gear { margin-top: var(--space-2); }
+
+.gear__figure {
+  font-family: var(--font-display);
+  font-size: var(--fs-figure);
+  font-weight: 500;
+  line-height: 1.1;
+  margin: 0.3rem 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.gear__meter {
+  height: 8px;
+  background: var(--marble-deep);
+  border: 1px solid var(--line);
+  margin: 0.5rem 0 0.35rem;
+}
+
+.gear__meter i {
+  display: block;
+  height: 100%;
+  background: var(--wedgwood);
+}
+
+.gear__meter--warn i { background: var(--terracotta); }
+
+.gear__note {
+  font-size: 0.875rem;
+  color: var(--bronze);
+}
+
+/* ————— All Weather bars ————— */
+.sleeve {
+  padding: var(--space-2) 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.sleeve:last-child { border-bottom: none; }
+
+.sleeve__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.sleeve__name {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 1.0625rem;
+}
+
+.sleeve__assets {
+  font-size: 0.875rem;
+  color: var(--bronze);
+  font-style: italic;
+}
+
+.barrow {
+  display: grid;
+  grid-template-columns: 7.5rem 1fr 3.5rem;
+  align-items: center;
+  gap: 0.6rem;
+  margin-top: 0.45rem;
+}
+
+.barrow__track {
+  height: 10px;
+  background: var(--marble-deep);
+  border: 1px solid var(--line);
+}
+
+.barrow__fill {
+  display: block;
+  height: 100%;
+}
+
+.barrow__fill--capital { background: var(--bronze); }
+.barrow__fill--risk { background: var(--wedgwood); }
+.barrow__fill--warn { background: var(--terracotta); }
+
+.barrow .r {
+  text-align: right;
+}
+
+/* ————— Principles ————— */
+.principle {
+  display: grid;
+  grid-template-columns: 6.5rem 1fr;
+  gap: var(--space-2);
+  padding: var(--space-2) 0;
+  border-bottom: 1px solid var(--line);
+  align-items: start;
+}
+
+.principle:last-of-type { border-bottom: none; }
+
+.principle__state {
+  font-family: var(--font-mono);
+  font-size: var(--fs-caption);
+  font-weight: 600;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  border: 1px solid currentColor;
+  padding: 0.3rem 0;
+  text-align: center;
+  align-self: start;
+}
+
+.principle__state--fired { color: var(--laurel); }
+.principle__state--dormant { color: var(--limestone); }
+
+.principle--dormant .principle__body { color: var(--bronze); }
+
+.principle__then {
+  font-style: italic;
+}
+
+/* ————— Register (five tiers of checkboxes) ————— */
+.register {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: var(--space-2);
+}
+
+@media (max-width: 64rem) {
+  .register { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 34rem) {
+  .register { grid-template-columns: minmax(0, 1fr); }
+}
+
+.tier {
+  background: var(--stone);
+  border: 1px solid var(--line);
+  border-top: 2px solid var(--wedgwood);
+  box-shadow: var(--panel-shadow);
+  padding: var(--space-2);
+}
+
+.tier--iv, .tier--v { border-top-color: var(--terracotta); }
+.tier--i { border-top-color: var(--laurel); }
+
+.tier__numeral {
+  font-family: var(--font-display);
+  font-size: 1.375rem;
+  text-align: center;
+}
+
+.tier__name {
+  text-align: center;
+  margin-bottom: var(--space-1);
+  padding-bottom: var(--space-1);
+  border-bottom: 1px solid var(--line);
+}
+
+.pick {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  min-height: 44px;
+  cursor: pointer;
+}
+
+.pick input {
+  appearance: none;
+  -webkit-appearance: none;
+  flex: none;
+  width: 18px;
+  height: 18px;
+  border: 1px solid var(--ink);
+  background: var(--stone);
+  cursor: pointer;
+  display: inline-block;
+}
+
+/* checked = solid Wedgwood square inset within the stone frame */
+.pick input:checked {
+  background: var(--wedgwood);
+  box-shadow: inset 0 0 0 3px var(--stone);
+}
+
+.pick__name {
+  font-size: 0.875rem;
+  line-height: 1.25;
+}
+
+.pick__score {
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-size: var(--fs-caption);
+  color: var(--limestone);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ————— Fan chart ————— */
+.fan-svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+/* ————— Hardstop ————— */
+.hardstop {
+  border: 1px solid var(--terracotta);
+  border-top-width: 2px;
+  background: rgba(140, 59, 46, 0.07);
+  padding: var(--space-2) var(--space-3);
+  margin-top: var(--space-3);
+  text-align: center;
+}
+
+.hardstop__word {
+  font-family: var(--font-display);
+  font-size: 1.375rem;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  text-indent: 0.2em;
+  text-transform: uppercase;
+  color: var(--terracotta);
+}
+
+.hardstop__detail {
+  margin-top: 0.35rem;
+  font-family: var(--font-mono);
+  font-size: var(--fs-caption);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--bronze);
+}
+
+/* ————— Footer ————— */
+.footer {
+  margin-top: var(--space-5);
+  text-align: center;
+}
+
+.footer__motto {
+  font-family: var(--font-display);
+  font-size: 1.25rem;
+  font-style: italic;
+}
+
+.footer__rule {
+  width: 4rem;
+  height: 1px;
+  background: var(--gilt);
+  margin: var(--space-2) auto;
+}
+
+.footer__disclaimer {
+  font-size: 0.8125rem;
+  color: var(--limestone);
+  max-width: 44rem;
+  margin: 0 auto;
+}
+
+.footnote {
+  margin-top: var(--space-2);
+  font-size: 0.8125rem;
+  color: var(--bronze);
+  font-style: italic;
+}
