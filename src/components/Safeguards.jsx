@@ -1,5 +1,22 @@
 import { riskOfRuin, RUIN_CEILING } from '../engine/machine.js'
 
+// Phase III made visible: the constraints that survive contact with the
+// real world, encoded as standing charter articles rather than aspirations.
+const CHARTER = [
+  {
+    title: 'Article 1 — Proxies Only',
+    body: 'True distressed debt is negotiated, legal-process-driven, and access-gated; it does not automate at this scale. The Opportunistic desk trades listed proxies — HY and loan ETFs, CLO debt, BDCs, closed-end funds at NAV discounts — and nothing else.',
+  },
+  {
+    title: 'Article 2 — Own Capital Only',
+    body: 'The machine manages its own capital. Outside money requires RIA registration, custody, a compliance manual, Form ADV, and documented human oversight of the automation — none of which are assumed here.',
+  },
+  {
+    title: 'Article 3 — The Judgment Residual',
+    body: 'Cycle positioning is judgment that resists full mechanization. The Co-CEO agents recommend; a human ratifies — the dial override above is that checkpoint. This is not a compromise of the vision; it is the difference between a system that survives its first regime change and one that does not.',
+  },
+]
+
 // Risk-of-ruin monitor: tail-loss probability against the 2.5% ceiling.
 export default function Safeguards({ current }) {
   const risk = riskOfRuin(current)
@@ -57,6 +74,20 @@ export default function Safeguards({ current }) {
               </>
             )}
           </p>
+        </div>
+      </div>
+
+      <div className="charter">
+        <div className="lbl lbl--ink" style={{ textAlign: 'center', margin: 'var(--space-2) 0 var(--space-1)' }}>
+          The Charter — Phase III Standing Constraints
+        </div>
+        <div className="charter__grid">
+          {CHARTER.map((a) => (
+            <div key={a.title} className="charter__article">
+              <div className="charter__title">{a.title}</div>
+              <p className="gear__note">{a.body}</p>
+            </div>
+          ))}
         </div>
       </div>
     </div>

@@ -49,8 +49,16 @@ sleeve weights, and generates one pass of decision-feed entries.
     400-path GBM fan (fixed seed → identical elections reproduce identical
     fans), analytic lognormal ledger rows
 - `src/live/fetchLive.js` — optional browser call to the Anthropic Messages API
-  with the web-search tool; defensive JSON parsing; converts prints to surprise
-  σ. Callers must catch and fall back to simulation.
+  with the web-search tool (GDP, CPI, policy rate, HY OAS); defensive JSON
+  parsing; converts prints to surprise σ and anchors the cycle via
+  `cycleFromSpread`. Callers must catch and fall back to simulation.
+- `src/live/convene.js` — optional live-firm call: one Messages API request
+  returns the IC debate votes and a Marks-voice memo as JSON; defensively
+  parsed; callers fall back to the simulated firm.
+- `src/components/art.jsx` — the plate gallery: public-domain paintings
+  hotlinked from Wikimedia Commons (candidate-URL fallback per plate; a plate
+  that cannot load withdraws itself so the layout never breaks). The Cole
+  plate in Section II swaps by dial posture.
 - `src/components/` — one component per dashboard section plus `chrome.jsx`
   (masthead, meander, section heads, dividers, hardstop banner, footer)
 - `src/styles/tokens.css` — the neoclassical design tokens (palette, type

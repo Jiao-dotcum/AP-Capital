@@ -618,6 +618,44 @@ td.num, th.r { font-variant-numeric: tabular-nums; }
   color: var(--bronze);
 }
 
+/* ————— Plates: old masters in stone frames ————— */
+.plate {
+  max-width: 40rem;
+  margin: 0 auto var(--space-3);
+}
+
+.plate__frame {
+  background: var(--stone);
+  border: 1px solid var(--bronze);
+  padding: 9px;
+  box-shadow: var(--panel-shadow);
+}
+
+.plate__frame img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border: 1px solid var(--gilt); /* the thin gilt fillet inside the frame */
+  filter: sepia(0.22) saturate(0.82) contrast(0.97) brightness(1.01);
+}
+
+.plate figcaption {
+  text-align: center;
+  margin-top: 0.65rem;
+}
+
+.plate__credit {
+  margin-top: 0.2rem;
+  font-size: 0.625rem;
+}
+
+.plate__note {
+  margin-top: 0.35rem;
+  font-style: italic;
+  font-size: 0.875rem;
+  color: var(--bronze);
+}
+
 /* ————— Aggressiveness dial ————— */
 .dial {
   margin: var(--space-2) 0 var(--space-1);
@@ -772,6 +810,21 @@ td.num, th.r { font-variant-numeric: tabular-nums; }
   color: var(--terracotta);
 }
 
+.feed__entry--live {
+  border-left-color: var(--gilt);
+}
+
+.memo__livechip {
+  color: var(--gilt);
+}
+
+.memo__convene {
+  text-align: center;
+  margin-top: var(--space-2);
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--line);
+}
+
 /* ————— The Memo ————— */
 .memo__head {
   text-align: center;
@@ -799,6 +852,31 @@ td.num, th.r { font-variant-numeric: tabular-nums; }
   font-style: italic;
   color: var(--bronze);
   text-align: center;
+}
+
+/* ————— The Charter ————— */
+.charter {
+  margin-top: var(--space-2);
+  border-top: 1px solid var(--line);
+}
+
+.charter__grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-3);
+}
+
+@media (max-width: 56rem) {
+  .charter__grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.charter__title {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 1rem;
+  margin-bottom: 0.3rem;
 }
 
 /* ————— Footer ————— */

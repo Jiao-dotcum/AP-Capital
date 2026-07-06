@@ -39,6 +39,22 @@ export function evolveCycle(rng, prev, reading) {
   }
 }
 
+// Anchor the whole cycle to a live HY OAS print: the spread is real, the
+// companion proxies are reconstructed from its implied stress level.
+export function cycleFromSpread(hyOas) {
+  const hySpread = Math.round(clamp(hyOas, 220, 1250))
+  const s = (hySpread - 220) / (1250 - 220)
+  return {
+    hySpread,
+    cccShare: +clamp(20 - 16 * s, 1, 24).toFixed(1),
+    covLite: Math.round(clamp(92 - 55 * s, 20, 95)),
+    distressRatio: +clamp(2 + 22 * s, 0.8, 30).toFixed(1),
+    fundFlows: +clamp(2.2 - 7 * s, -8, 4).toFixed(1),
+    ipoHeat: Math.round(clamp(85 - 80 * s, 2, 98)),
+    lenderEase: Math.round(clamp(90 - 85 * s, 3, 97)),
+  }
+}
+
 // Linear despair score: 0 at the froth value, 100 at the despair value.
 const lin = (v, froth, despair) => Math.round(clamp(((v - froth) / (despair - froth)) * 100, 0, 100))
 

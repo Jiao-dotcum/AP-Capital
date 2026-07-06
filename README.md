@@ -25,9 +25,34 @@ Phase 1 of the build plan, everything simulated.
 | X | The Firm | — | Eight agent layers (interns → the Memo); a live **decision feed** showing data pulls, screens, memos, PM proposals, risk vetoes, IC debate (three priors: perma-bear, macro-first, bottom-up-first), and Co-CEO joint sign-offs; plus the quarterly Marks-style **Memo** |
 | XI | Safeguards | — | Risk-of-ruin monitor (2.5% ceiling) enforced by the Layer-4 risk agent; hardstop banner on breach |
 
-An optional **Fetch Live Macro Data** control calls the Anthropic Messages API
-(web-search tool) from the browser, converts prints to surprise σ, and feeds the
-whole pipeline; failures fall back to simulation with a visible status line.
+## Live modes (Phase 2, bring your own Anthropic API key)
+
+- **Fetch Live Macro Data** — calls the Anthropic Messages API (web-search
+  tool) from the browser for the latest GDP, core CPI, policy rate, **and HY
+  OAS**; converts prints to surprise σ, anchors the whole credit cycle to the
+  real spread, and feeds the pipeline. Failures fall back to simulation with a
+  visible status line.
+- **Convene the Firm — Live** (Section X) — one API call has a real model act
+  as the judgment layers: the three-persona IC debate (reasoning in the feed,
+  gilt-ruled entries) and the quarterly Memo written in Marks' voice. Falls
+  back to the simulated firm on any failure.
+
+## The gallery
+
+Five public-domain old masters are hotlinked from Wikimedia Commons and dressed
+as numbered plates (stone frame, gilt fillet, sepia varnish): Wright of Derby's
+*Air Pump* (the machine observed), Thomas Cole's *Course of Empire* — which
+**swaps between Consummation / Arcadian / Destruction as the dial moves**,
+Poussin's *A Dance to the Music of Time* (the seasons), David's *Oath of the
+Horatii* (the firm's oath) and *Death of Socrates* (the refused override). If
+an image is unreachable the plate withdraws itself; the page never breaks.
+
+## Phase III — The Charter
+
+The real-world constraints are encoded as standing articles in Section XI:
+proxies only (true distressed doesn't automate), own capital only (outside
+money means RIA registration and human oversight), and the judgment residual
+(agents recommend, a human ratifies — the dial override is that checkpoint).
 
 ## Running
 

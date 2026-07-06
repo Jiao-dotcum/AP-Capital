@@ -1,7 +1,7 @@
 import { LAYERS } from '../engine/firm.js'
 
 // Layer roster, the live decision feed, and the quarterly Memo.
-export default function Firm({ feed, memo, vetoCount }) {
+export default function Firm({ feed, memo, vetoCount, live, onConvene, convening, firmStatus }) {
   return (
     <div>
       <div className="grid-2">
@@ -43,7 +43,10 @@ export default function Firm({ feed, memo, vetoCount }) {
 
       <div className="panel memo" style={{ marginTop: 'var(--space-3)' }}>
         <div className="memo__head">
-          <div className="lbl">Layer 7 — Memo No. {memo.number} · {memo.quarter}</div>
+          <div className="lbl">
+            Layer 7 — Memo No. {memo.number} · {memo.quarter}
+            {live && <span className="memo__livechip"> · convened live</span>}
+          </div>
           <h3 className="memo__title">“{memo.title}”</h3>
         </div>
         {memo.paragraphs.map((p, k) => (
@@ -51,6 +54,15 @@ export default function Firm({ feed, memo, vetoCount }) {
             {p}
           </p>
         ))}
+        <div className="memo__convene">
+          <button type="button" className="btn btn--outline btn--small" onClick={onConvene} disabled={convening}>
+            {convening ? 'Convening…' : 'Convene the Firm — Live'}
+          </button>
+          <p className="footnote" style={{ marginTop: '0.5rem' }}>
+            {firmStatus ||
+              'With an API key entered above, the committee debate and this memo are written by a live model instead of templates. Failures fall back to the simulated firm.'}
+          </p>
+        </div>
       </div>
     </div>
   )

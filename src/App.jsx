@@ -5,6 +5,7 @@ import { UNIVERSE } from './engine/assets.js'
 import {
   CYCLE0,
   evolveCycle,
+  cycleFromSpread,
   proxyScores,
   dialFrom,
   postureOf,
@@ -13,8 +14,10 @@ import {
   deployAuthorized,
 } from './engine/cycle.js'
 import { screenPerforming } from './engine/credit.js'
-import { buildFeed, memoFrom } from './engine/firm.js'
+import { buildFeed, memoFrom, quarterLabel } from './engine/firm.js'
 import { fetchLiveMacro } from './live/fetchLive.js'
+import { conveneFirm } from './live/convene.js'
+import { Plate, PLATES } from './components/art.jsx'
 import {
   Masthead,
   SectionHead,
@@ -43,8 +46,8 @@ const DEFAULT_ELECTED = ['usEq', 'ust10', 'tips', 'gold', 'gsci', 'cash']
 
 // Build the whole per-release state transition in one pure step so the
 // simulate and live-fetch paths share it.
-function advanceWorld(rng, world, reading) {
-  const cycle = evolveCycle(rng, world.cycle, reading)
+function advanceWorld(rng, world, reading, liveSpread = null) {
+  const cycle = liveSpread ? cycleFromSpread(liveSpread) : evolveCycle(rng, world.cycle, reading)
   const dial = world.dialOverride ?? dialFrom(proxyScores(cycle))
   const weights = weightsFor(dial)
   const screen = screenPerforming(cycle)
@@ -95,6 +98,9 @@ export default function App() {
   const [apiKey, setApiKey] = useState('')
   const [status, setStatus] = useState({ kind: 'idle', text: 'Feed: simulated · seeded generator' })
   const [fetching, setFetching] = useState(false)
+  const [liveMemo, setLiveMemo] = useState(null)
+  const [convening, setConvening] = useState(false)
+  const [firmStatus, setFirmStatus] = useState('')
 
   const current = world.trail[world.trail.length - 1]
   const risk = riskOfRuin(current)
@@ -108,7 +114,7 @@ export default function App() {
   const screen = useMemo(() => screenPerforming(world.cycle), [world.cycle])
   const triggers = useMemo(() => triggersFrom(world.cycle), [world.cycle])
   const deploy = deployAuthorized(triggers)
-  const memo = useMemo(
+  const templateMemo = useMemo(
     () =>
       memoFrom({
         releaseN: world.releaseN,
@@ -121,12 +127,23 @@ export default function App() {
       }),
     [world.releaseN, dial, world.cycle, screen, weights, deploy],
   )
+  const memoIsLive = liveMemo !== null && liveMemo.releaseN === world.releaseN
+  const memo = memoIsLive
+    ? { number: templateMemo.number, quarter: templateMemo.quarter, title: liveMemo.title, paragraphs: liveMemo.paragraphs }
+    : templateMemo
+
+  // Cole's empire tracks the cycle: consummation in froth, arcadia at
+  // mid-cycle, destruction in despair.
+  const colePlate =
+    dial < 35 ? PLATES.coleConsummation : dial < 65 ? PLATES.coleArcadian : PLATES.coleDestruction
 
   const electedAssets = useMemo(() => UNIVERSE.filter((a) => elected.has(a.id)), [elected])
 
   const simulate = () => {
     const reading = drawReading(engine.rng, current)
     setWorld((w) => advanceWorld(engine.rng, w, reading))
+    setLiveMemo(null)
+    setFirmStatus('')
     setStatus({ kind: 'idle', text: 'Feed: simulated · seeded generator' })
   }
 
@@ -135,10 +152,12 @@ export default function App() {
     setStatus({ kind: 'idle', text: 'Consulting the wire — web search in progress…' })
     try {
       const { prints, reading } = await fetchLiveMacro(apiKey.trim())
-      setWorld((w) => advanceWorld(engine.rng, w, reading))
+      setWorld((w) => advanceWorld(engine.rng, w, reading, prints.hy_oas))
+      setLiveMemo(null)
+      setFirmStatus('')
       setStatus({
         kind: 'live',
-        text: `Feed: live · GDP ${prints.gdp_saar}% · Core CPI ${prints.core_cpi_yoy}% · Policy ${prints.policy_rate}%`,
+        text: `Feed: live · GDP ${prints.gdp_saar}% · Core CPI ${prints.core_cpi_yoy}% · Policy ${prints.policy_rate}% · HY OAS ${prints.hy_oas} bp`,
       })
     } catch (err) {
       const reading = drawReading(engine.rng, current)
@@ -149,6 +168,48 @@ export default function App() {
       })
     } finally {
       setFetching(false)
+    }
+  }
+
+  // Phase 2 in miniature: the IC debate and the Memo written by a live model.
+  const convene = async () => {
+    setConvening(true)
+    setFirmStatus('Convening — the committee is deliberating…')
+    try {
+      const res = await conveneFirm(apiKey.trim(), {
+        release: world.releaseN,
+        quarter: quarterLabel(world.releaseN),
+        macro: { growth_surprise_sigma: current.g, inflation_surprise_sigma: current.i },
+        cycle: world.cycle,
+        dial,
+        posture: postureOf(dial).word,
+        sleeve_weights: weights,
+        performing_desk: screen.map((r) => ({
+          name: r.name,
+          rating: r.rating,
+          market_spread_bp: r.marketSpread,
+          model_spread_bp: r.modelSpread,
+          verdict: r.verdict,
+        })),
+        triggers_armed: triggers.filter((t) => t.armed).map((t) => t.name),
+        dry_powder_deploy_authorized: deploy,
+      })
+      const ayes = res.votes.filter((v) => v.vote === 'aye').length
+      const entry = {
+        id: `live-${world.releaseN}-${Date.now()}`,
+        n: world.releaseN,
+        layer: 'L5',
+        role: 'Investment Committee · Live',
+        text: `Convened live — ${res.votes.map((v) => `${v.name}: ${v.vote} (“${v.reason}”)`).join(' · ')}. ${ayes}–${3 - ayes} ${ayes >= 2 ? 'PASSED' : 'REJECTED'}.`,
+        tone: 'live',
+      }
+      setWorld((w) => ({ ...w, feed: [entry, ...w.feed].slice(0, FEED_LENGTH) }))
+      setLiveMemo({ ...res, releaseN: world.releaseN })
+      setFirmStatus('The firm convened live — committee reasoning in the feed, the memo below is the model’s own.')
+    } catch (err) {
+      setFirmStatus(`Convene failed (${err.message}) — the simulated firm stands.`)
+    } finally {
+      setConvening(false)
     }
   }
 
@@ -197,6 +258,7 @@ export default function App() {
           title="The Machine"
           note="The Bridgewater engine diagnoses the environment: growth against what was priced, inflation against what was priced. The compass reads the regime; the gears turn beneath it."
         />
+        <Plate plate={PLATES.airpump} />
         <div className="grid-hero">
           <div className="panel">
             <Compass trail={world.trail} />
@@ -214,6 +276,7 @@ export default function App() {
           title="The Cycle"
           note="The Oaktree engine decides how aggressive to be within it. You cannot predict the cycle; you can measure where you stand and calibrate offense against defense."
         />
+        <Plate plate={colePlate} key={colePlate.title} />
         <CycleGauge
           scores={scores}
           autoDial={autoDial}
@@ -232,6 +295,7 @@ export default function App() {
           title="Beta — All Weather"
           note="The strategic book. Harvest the risk premium in every season by balancing risk, not capital."
         />
+        <Plate plate={PLATES.poussin} />
         <AllWeather />
       </section>
 
@@ -315,7 +379,16 @@ export default function App() {
           title="The Firm"
           note="Every employee from intern to Co-CEO is an agent with a role, tools, and an artifact. Decisions flow up; nothing trades without passing each layer."
         />
-        <Firm feed={world.feed} memo={memo} vetoCount={world.vetoCount} />
+        <Plate plate={PLATES.oath} />
+        <Firm
+          feed={world.feed}
+          memo={memo}
+          vetoCount={world.vetoCount}
+          live={memoIsLive}
+          onConvene={convene}
+          convening={convening}
+          firmStatus={firmStatus}
+        />
       </section>
 
       <ColumnDivider />
@@ -326,6 +399,7 @@ export default function App() {
           title="Safeguards"
           note="The machine assumes it will sometimes be wrong. The question is only how much that costs."
         />
+        <Plate plate={PLATES.socrates} />
         <Safeguards current={current} />
       </section>
 
