@@ -14,6 +14,7 @@ import {
   deployAuthorized,
 } from './engine/cycle.js'
 import { screenPerforming } from './engine/credit.js'
+import { bestIdeas } from './engine/origination.js'
 import { buildFeed, memoFrom, quarterLabel } from './engine/firm.js'
 import { fetchLiveMacro } from './live/fetchLive.js'
 import { conveneFirm } from './live/convene.js'
@@ -32,6 +33,7 @@ import CycleGauge from './components/CycleGauge.jsx'
 import AllWeather from './components/AllWeather.jsx'
 import PureAlpha from './components/PureAlpha.jsx'
 import Desks from './components/Desks.jsx'
+import Origination from './components/Origination.jsx'
 import Register from './components/Register.jsx'
 import Allocation from './components/Allocation.jsx'
 import MonteCarlo from './components/MonteCarlo.jsx'
@@ -138,6 +140,12 @@ export default function App() {
     dial < 35 ? PLATES.coleConsummation : dial < 65 ? PLATES.coleArcadian : PLATES.coleDestruction
 
   const electedAssets = useMemo(() => UNIVERSE.filter((a) => elected.has(a.id)), [elected])
+
+  // The Origination Desk re-ranks its docket from the same derived signals.
+  const ideas = useMemo(
+    () => bestIdeas({ g: current.g, i: current.i, dial, screen, deploy, cycle: world.cycle }),
+    [current, dial, screen, deploy, world.cycle],
+  )
 
   const simulate = () => {
     const reading = drawReading(engine.rng, current)
@@ -332,6 +340,17 @@ export default function App() {
       <section className="section">
         <SectionHead
           numeral="VI"
+          title="The Origination Desk"
+          note="Where the next dollar goes. Every signal the machine produces — regime, posture, carry, divergence — folded into one ranked docket of nominations. The desk proposes; the committee disposes."
+        />
+        <Origination ideas={ideas} />
+      </section>
+
+      <ColumnDivider />
+
+      <section className="section">
+        <SectionHead
+          numeral="VII"
           title="The Register"
           note="Fifteen liquid holdings scored on the current surprises and ranked into five tiers, best to worst. Tick to elect into the working portfolio."
         />
@@ -342,7 +361,7 @@ export default function App() {
 
       <section className="section">
         <SectionHead
-          numeral="VII"
+          numeral="VIII"
           title="The Allocation"
           note="Five sleeves, one dial. Bridgewater supplies the balance; Oaktree supplies the temperature; Marks supplies the patience."
         />
@@ -353,7 +372,7 @@ export default function App() {
 
       <section className="section">
         <SectionHead
-          numeral="VIII"
+          numeral="IX"
           title="Monte Carlo Simulation"
           note="Four hundred paths of the elected book over ten years. The distribution is the forecast."
         />
@@ -364,7 +383,7 @@ export default function App() {
 
       <section className="section">
         <SectionHead
-          numeral="IX"
+          numeral="X"
           title="Returns Ledger"
           note="The analytic account of every elected holding, stated in the measures appropriate to liquid assets."
         />
@@ -375,7 +394,7 @@ export default function App() {
 
       <section className="section">
         <SectionHead
-          numeral="X"
+          numeral="XI"
           title="The Firm"
           note="Every employee from intern to Co-CEO is an agent with a role, tools, and an artifact. Decisions flow up; nothing trades without passing each layer."
         />
@@ -395,7 +414,7 @@ export default function App() {
 
       <section className="section">
         <SectionHead
-          numeral="XI"
+          numeral="XII"
           title="Safeguards"
           note="The machine assumes it will sometimes be wrong. The question is only how much that costs."
         />

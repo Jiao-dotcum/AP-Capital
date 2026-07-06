@@ -19,11 +19,12 @@ Phase 1 of the build plan, everything simulated.
 | III | Beta — All Weather | Bridgewater | Four seasonal sleeves at 25% risk vs the 60/40 capital illusion |
 | IV | Alpha — Pure Alpha | Bridgewater | Six IF/THEN principles, FIRED or dormant |
 | V | The Credit Desks | Oaktree | **Performing Credit** (Panossian): 10 issuers screened on coverage ≥ 2×, DD ≥ 2σ, spread-per-turn ≥ 90 bp, and the margin-of-safety gate; second-level thinking mechanized as market-vs-model spread divergence; sized by MoS. **Opportunistic** (O'Leary): dry powder, three distress triggers (deploys only when ≥ 2 arm), listed proxies (ETFs/BDCs/CEFs) since true distressed is not automatable |
-| VI | The Register | Bridgewater | 15 holdings scored and re-ranked into five tiers; checkboxes elect the working portfolio |
-| VII | The Allocation | Unified | Five sleeves interpolated between defensive/neutral/offensive anchors by the dial |
-| VIII–IX | Monte Carlo & Ledger | — | 400-path GBM fan + analytic returns ledger for the elected book |
-| X | The Firm | — | Eight agent layers (interns → the Memo); a live **decision feed** showing data pulls, screens, memos, PM proposals, risk vetoes, IC debate (three priors: perma-bear, macro-first, bottom-up-first), and Co-CEO joint sign-offs; plus the quarterly Marks-style **Memo** |
-| XI | Safeguards | — | Risk-of-ruin monitor (2.5% ceiling) enforced by the Layer-4 risk agent; hardstop banner on breach |
+| VI | The Origination Desk | Unified | Sourcing, mechanized: every signal the machine produces (regime fit, cycle posture, carry, risk-adjusted premium, credit divergence) folded into one ranked **docket** of best-idea nominations |
+| VII | The Register | Bridgewater | 15 holdings scored and re-ranked into five tiers; checkboxes elect the working portfolio |
+| VIII | The Allocation | Unified | Five sleeves interpolated between defensive/neutral/offensive anchors by the dial |
+| IX–X | Monte Carlo & Ledger | — | 400-path GBM fan + analytic returns ledger for the elected book |
+| XI | The Firm | — | Eight agent layers (interns → the Memo); a live **decision feed** showing data pulls, screens, memos, PM proposals, risk vetoes, IC debate (three priors: perma-bear, macro-first, bottom-up-first), and Co-CEO joint sign-offs; plus the quarterly Marks-style **Memo** |
+| XII | Safeguards | — | Risk-of-ruin monitor (2.5% ceiling) enforced by the Layer-4 risk agent; hardstop banner on breach |
 
 ## Live modes (Phase 2, bring your own Anthropic API key)
 

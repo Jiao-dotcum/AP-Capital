@@ -6,7 +6,7 @@ export default function CycleGauge({ scores, autoDial, dial, override, onOverrid
   const posture = postureOf(dial)
 
   return (
-    <div className="grid-2">
+    <div className="grid-2 grid-2--top">
       <div className="panel">
         <h3 className="panel__title">The Aggressiveness Dial</h3>
         <div className="dial__figure">

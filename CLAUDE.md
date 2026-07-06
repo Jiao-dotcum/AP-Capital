@@ -44,6 +44,10 @@ sleeve weights, and generates one pass of decision-feed entries.
     generator (quarters advance every 3 releases)
   - `assets.js` — 15-asset universe with ER/vol/βG/βI/carry, the scoring
     formula, five-tier ranking
+  - `origination.js` — the Origination Desk: composite conviction scores
+    (regime fit, cycle-posture fit, carry, risk-adjusted premium, credit
+    divergence) → the ranked best-ideas docket (top 8); nominates only, never
+    sizes
   - `rules.js` — six IF/THEN Pure Alpha principles
   - `montecarlo.js` — equal-weight portfolio moments (pairwise ρ = 0.25),
     400-path GBM fan (fixed seed → identical elections reproduce identical
