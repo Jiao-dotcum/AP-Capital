@@ -46,8 +46,8 @@ export function Masthead() {
   return (
     <header className="masthead">
       <Pediment />
-      <h1 className="masthead__title">The Economic Machine</h1>
-      <p className="masthead__sub">An Investment Diagnostic · Systematic Macro</p>
+      <h1 className="masthead__title">The Complete Machine</h1>
+      <p className="masthead__sub">Bridgewater × Oaktree · An Autonomous Fund Diagnostic</p>
       <Meander />
     </header>
   )

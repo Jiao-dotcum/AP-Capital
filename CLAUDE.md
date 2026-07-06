@@ -15,15 +15,33 @@ at `/opt/pw-browsers/chromium` via `playwright-core`).
 
 ## Architecture
 
-Single-page React app (Vite, no backend, no router). All market data is
-simulated in-memory with a seeded PRNG (`mulberry32`) so results are
-reproducible. The core state is a trail (last 6) of `{g, i}` surprise readings
-in σ units, held in `src/App.jsx`; every module derives from the latest reading.
+Single-page React app (Vite, no backend, no router) simulating a
+Bridgewater × Oaktree autonomous fund. All market data is simulated in-memory
+with a seeded PRNG (`mulberry32`) so results are reproducible. Core state lives
+in `src/App.jsx`: a trail (last 6) of `{g, i}` macro surprise readings in σ
+units, plus a coupled credit-cycle object, an accumulating agent decision feed,
+and an optional Aggressiveness Dial override. `advanceWorld()` in `App.jsx` is
+the single state transition shared by the simulate and live-fetch paths — every
+release evolves the cycle, re-screens the credit desks, recomputes the dial and
+sleeve weights, and generates one pass of decision-feed entries.
 
 - `src/engine/` — pure logic, no React:
   - `prng.js` — mulberry32, Box–Muller normal, clamp
   - `machine.js` — surprise draws, priced-in constants, release tape, regime
     quadrants, the three gears, risk-of-ruin (ceiling 2.5%)
+  - `cycle.js` — Oaktree layer: credit-cycle evolution (coupled to macro
+    stress), seven market-temperature proxies → despair scores → the
+    Aggressiveness Dial, five-sleeve anchor allocations interpolated by dial,
+    dry-powder deployment triggers (≥ 2 armed authorizes)
+  - `credit.js` — 10-issuer performing-credit universe; screens (coverage,
+    distance-to-default, spread-per-turn, margin-of-safety gate), consensus
+    divergence (market vs model spread — second-level thinking), MoS-based
+    sizing, opportunistic proxy vehicles. Deterministic per cycle print (hash,
+    not rng)
+  - `firm.js` — the 8-layer agent hierarchy roster, per-release decision-feed
+    builder (intern → analyst → memo → desk PMs → risk veto → IC debate with
+    three fixed priors → Co-CEO sign-off), and the quarterly Marks-style memo
+    generator (quarters advance every 3 releases)
   - `assets.js` — 15-asset universe with ER/vol/βG/βI/carry, the scoring
     formula, five-tier ranking
   - `rules.js` — six IF/THEN Pure Alpha principles

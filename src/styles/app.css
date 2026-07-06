@@ -618,6 +618,189 @@ td.num, th.r { font-variant-numeric: tabular-nums; }
   color: var(--bronze);
 }
 
+/* ————— Aggressiveness dial ————— */
+.dial {
+  margin: var(--space-2) 0 var(--space-1);
+}
+
+.dial__figure {
+  margin-bottom: var(--space-1);
+}
+
+.dial__track {
+  position: relative;
+  height: 14px;
+  background: var(--marble-deep);
+  border: 1px solid var(--line);
+}
+
+.dial__zoneline {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: var(--bronze);
+}
+
+.dial__marker {
+  position: absolute;
+  top: -5px;
+  bottom: -5px;
+  width: 3px;
+  margin-left: -1.5px;
+  background: var(--wedgwood);
+}
+
+.dial__zones {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 0.4rem;
+}
+
+.dial__override {
+  margin-top: var(--space-2);
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--line);
+}
+
+.dial__override-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.dial__override-row input[type='range'] {
+  flex: 1;
+  min-width: 10rem;
+  min-height: 44px;
+  accent-color: var(--wedgwood);
+  cursor: pointer;
+  background: transparent;
+}
+
+.btn--small {
+  min-height: 44px;
+  padding: 0 var(--space-2);
+  font-size: var(--fs-caption);
+}
+
+.proxy__bounds {
+  font-size: var(--fs-caption);
+  color: var(--limestone);
+  letter-spacing: 0.04em;
+}
+
+/* ————— Opportunistic triggers ————— */
+.trigger {
+  display: grid;
+  grid-template-columns: 6.5rem 1fr;
+  gap: var(--space-2);
+  align-items: center;
+  padding: 0.55rem 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.trigger:last-of-type {
+  border-bottom: none;
+}
+
+/* ————— The firm: layers & decision feed ————— */
+.layer {
+  display: grid;
+  grid-template-columns: 2.6rem 1fr;
+  gap: var(--space-2);
+  padding: 0.55rem 0;
+  border-bottom: 1px solid var(--line);
+  align-items: start;
+}
+
+.layer:last-of-type {
+  border-bottom: none;
+}
+
+.layer__id {
+  color: var(--gilt);
+  font-weight: 600;
+  padding-top: 0.15rem;
+}
+
+.layer__role {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 1rem;
+}
+
+.feed {
+  max-height: 33rem;
+  overflow-y: auto;
+  border-top: 1px solid var(--line);
+}
+
+.feed__entry {
+  display: grid;
+  grid-template-columns: 4.6rem 1fr;
+  gap: var(--space-2);
+  padding: 0.65rem 0;
+  border-bottom: 1px solid var(--line);
+  border-left: 2px solid transparent;
+  padding-left: 0.5rem;
+}
+
+.feed__entry--pass {
+  border-left-color: var(--laurel);
+}
+
+.feed__entry--veto {
+  border-left-color: var(--terracotta);
+}
+
+.feed__chip {
+  font-size: var(--fs-caption);
+  color: var(--limestone);
+  padding-top: 0.1rem;
+  white-space: nowrap;
+}
+
+.feed__text {
+  font-size: 0.875rem;
+  color: var(--bronze);
+  margin-top: 0.15rem;
+}
+
+.feed__entry--veto .feed__text {
+  color: var(--terracotta);
+}
+
+/* ————— The Memo ————— */
+.memo__head {
+  text-align: center;
+  margin-bottom: var(--space-2);
+  padding-bottom: var(--space-2);
+  border-bottom: 1px solid var(--line);
+}
+
+.memo__title {
+  font-family: var(--font-display);
+  font-size: 1.375rem;
+  font-weight: 600;
+  font-style: italic;
+  margin-top: 0.35rem;
+}
+
+.memo__para {
+  max-width: 46rem;
+  margin: 0 auto var(--space-2);
+  font-size: 0.9688rem;
+}
+
+.memo__para:last-child {
+  margin-bottom: 0;
+  font-style: italic;
+  color: var(--bronze);
+  text-align: center;
+}
+
 /* ————— Footer ————— */
 .footer {
   margin-top: var(--space-5);
