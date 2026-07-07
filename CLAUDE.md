@@ -30,9 +30,12 @@ sleeve weights, and generates one pass of decision-feed entries.
   - `machine.js` — surprise draws, priced-in constants, release tape, regime
     quadrants, the three gears, risk-of-ruin (ceiling 2.5%)
   - `cycle.js` — Oaktree layer: credit-cycle evolution (coupled to macro
-    stress), seven market-temperature proxies → despair scores → the
-    Aggressiveness Dial, five-sleeve anchor allocations interpolated by dial,
-    dry-powder deployment triggers (≥ 2 armed authorizes)
+    stress), seven market-temperature proxies scored as percentiles in a
+    rolling history (a seeded ten-year climatology plus the session's cycle
+    states) → the Aggressiveness Dial, settled through a ±5-point deadband
+    (`settleDial`) so it doesn't whipsaw; five-sleeve anchor allocations
+    interpolated by dial, dry-powder deployment triggers (≥ 2 armed
+    authorizes)
   - `credit.js` — 10-issuer performing-credit universe; screens (coverage,
     distance-to-default, spread-per-turn, margin-of-safety gate), consensus
     divergence (market vs model spread — second-level thinking), MoS-based

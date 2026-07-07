@@ -1,4 +1,5 @@
-import { clamp } from './prng.js'
+import { clamp, mulberry32 } from './prng.js'
+import { drawReading } from './machine.js'
 
 // ————— The Oaktree layer: cycle positioning —————
 // You cannot predict the cycle, but you can measure where you stand in it.
@@ -55,27 +56,94 @@ export function cycleFromSpread(hyOas) {
   }
 }
 
-// Linear despair score: 0 at the froth value, 100 at the despair value.
-const lin = (v, froth, despair) => Math.round(clamp(((v - froth) / (despair - froth)) * 100, 0, 100))
-
 const flowWord = (f) => `${f >= 0 ? '+' : '−'}$${Math.abs(f).toFixed(1)}bn/wk`
 const lenderWord = (e) =>
   e > 70 ? 'Money chasing deals' : e > 40 ? 'Selective' : e > 20 ? 'Tightening' : 'Rationing credit'
 
-export function proxyScores(c) {
+// ————— Percentile scoring against a rolling history —————
+// A reading of "420 bp" means nothing on its own; what matters is where it
+// sits in the distribution of everything the machine has seen. Each proxy is
+// scored as its percentile in a ten-year seeded climatology (520 weekly
+// prints evolved from the same cycle dynamics — reproducible by construction)
+// plus every cycle state observed this session, oriented so 100 = despair.
+
+const PROXY_FIELDS = ['hySpread', 'cccShare', 'covLite', 'distressRatio', 'fundFlows', 'ipoHeat', 'lenderEase']
+
+// +1: higher reading = deeper despair; −1: lower reading = deeper despair.
+const DESPAIR_DIR = {
+  hySpread: +1,
+  cccShare: -1,
+  covLite: -1,
+  distressRatio: +1,
+  fundFlows: -1,
+  ipoHeat: -1,
+  lenderEase: -1,
+}
+
+export const CLIMATOLOGY_SEED = 20160705
+export const CLIMATOLOGY_WEEKS = 520
+
+export function buildClimatology(seed = CLIMATOLOGY_SEED, n = CLIMATOLOGY_WEEKS) {
+  const rng = mulberry32(seed)
+  const hist = Object.fromEntries(PROXY_FIELDS.map((f) => [f, []]))
+  let c = CYCLE0
+  let reading = null
+  for (let k = 0; k < n; k++) {
+    reading = drawReading(rng, reading)
+    c = evolveCycle(rng, c, reading)
+    for (const f of PROXY_FIELDS) hist[f].push(c[f])
+  }
+  return hist
+}
+
+const CLIMATOLOGY = buildClimatology()
+
+// Midrank percentile: ties count half, so a flat history cannot pin a proxy
+// to 0 or 100.
+function pctRank(values, v) {
+  let less = 0
+  let eq = 0
+  for (const x of values) {
+    if (x < v) less += 1
+    else if (x === v) eq += 1
+  }
+  return (100 * (less + 0.5 * eq)) / values.length
+}
+
+const despairPct = (field, v, extra) => {
+  const values = extra.length
+    ? [...CLIMATOLOGY[field], ...extra.map((c) => c[field])]
+    : CLIMATOLOGY[field]
+  const p = pctRank(values, v)
+  return Math.round(DESPAIR_DIR[field] > 0 ? p : 100 - p)
+}
+
+// The rows CycleGauge renders. `history` is the session's past cycle states —
+// the rolling extension of the climatology.
+export function proxyScores(c, history = []) {
+  const s = (field) => despairPct(field, c[field], history)
   return [
-    { key: 'spread', label: 'HY Spread (OAS)', value: `${c.hySpread} bp`, froth: '< 300 bp', despair: '> 800 bp', score: lin(c.hySpread, 300, 800) },
-    { key: 'ccc', label: 'CCC Share of New Issuance', value: `${c.cccShare}%`, froth: 'Rising ≥ 20%', despair: 'Collapsed ≤ 3%', score: lin(c.cccShare, 20, 3) },
-    { key: 'covlite', label: 'Cov-Lite % of Loan Issuance', value: `${c.covLite}%`, froth: '> 85%', despair: 'Issuance frozen', score: lin(c.covLite, 85, 30) },
-    { key: 'distress', label: 'Distress Ratio (> 1000 bp)', value: `${c.distressRatio}%`, froth: '< 4%', despair: '> 15%', score: lin(c.distressRatio, 4, 15) },
-    { key: 'flows', label: 'HY / Loan Fund Flows', value: flowWord(c.fundFlows), froth: 'Heavy inflows', despair: 'Panic outflows', score: lin(c.fundFlows, 2, -5) },
-    { key: 'ipo', label: 'IPO · SPAC · Meme Heat', value: `${c.ipoHeat} / 100`, froth: 'Euphoric', despair: 'Dead', score: lin(c.ipoHeat, 90, 10) },
-    { key: 'lender', label: 'Lender Behavior', value: lenderWord(c.lenderEase), froth: 'Too much money', despair: 'Credit rationing', score: lin(c.lenderEase, 90, 10) },
+    { key: 'spread', label: 'HY Spread (OAS)', value: `${c.hySpread} bp`, froth: '< 300 bp', despair: '> 800 bp', score: s('hySpread') },
+    { key: 'ccc', label: 'CCC Share of New Issuance', value: `${c.cccShare}%`, froth: 'Rising ≥ 20%', despair: 'Collapsed ≤ 3%', score: s('cccShare') },
+    { key: 'covlite', label: 'Cov-Lite % of Loan Issuance', value: `${c.covLite}%`, froth: '> 85%', despair: 'Issuance frozen', score: s('covLite') },
+    { key: 'distress', label: 'Distress Ratio (> 1000 bp)', value: `${c.distressRatio}%`, froth: '< 4%', despair: '> 15%', score: s('distressRatio') },
+    { key: 'flows', label: 'HY / Loan Fund Flows', value: flowWord(c.fundFlows), froth: 'Heavy inflows', despair: 'Panic outflows', score: s('fundFlows') },
+    { key: 'ipo', label: 'IPO · SPAC · Meme Heat', value: `${c.ipoHeat} / 100`, froth: 'Euphoric', despair: 'Dead', score: s('ipoHeat') },
+    { key: 'lender', label: 'Lender Behavior', value: lenderWord(c.lenderEase), froth: 'Too much money', despair: 'Credit rationing', score: s('lenderEase') },
   ]
 }
 
 export const dialFrom = (scores) =>
   Math.round(scores.reduce((s, p) => s + p.score, 0) / scores.length)
+
+// ————— Dial hysteresis —————
+// The composite is noisy release to release; the book should not be. The
+// dial follows the composite only when it has moved by at least the deadband
+// — small wobbles are absorbed, regime shifts pass through.
+export const DIAL_DEADBAND = 5
+
+export const settleDial = (prevDial, composite) =>
+  Math.abs(composite - prevDial) >= DIAL_DEADBAND ? composite : prevDial
 
 export function postureOf(dial) {
   if (dial < 35) return { word: 'Defense', note: 'Froth: prices assume the best. Take what the market gives, keep powder dry.' }

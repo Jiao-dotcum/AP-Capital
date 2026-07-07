@@ -8,6 +8,8 @@ import {
   cycleFromSpread,
   proxyScores,
   dialFrom,
+  settleDial,
+  DIAL_DEADBAND,
   postureOf,
   weightsFor,
   triggersFrom,
@@ -46,6 +48,7 @@ import Safeguards from './components/Safeguards.jsx'
 
 const SEED = 20260705
 const PIT_KEY = 'apcap-pit-v1'
+const HIST_LENGTH = 260 // five years of weekly cycle states in the rolling window
 const TRAIL_LENGTH = 6
 const FEED_LENGTH = 32
 const DEFAULT_ELECTED = ['usEq', 'ust10', 'tips', 'gold', 'gsci', 'cash']
@@ -54,7 +57,11 @@ const DEFAULT_ELECTED = ['usEq', 'ust10', 'tips', 'gold', 'gsci', 'cash']
 // simulate and live-fetch paths share it.
 function advanceWorld(rng, world, reading, liveSpread = null) {
   const cycle = liveSpread ? cycleFromSpread(liveSpread) : evolveCycle(rng, world.cycle, reading)
-  const dial = world.dialOverride ?? dialFrom(proxyScores(cycle))
+  const cycleHist = [...world.cycleHist, cycle].slice(-HIST_LENGTH)
+  // Percentile composite settled through the deadband: the dial holds until
+  // the composite has genuinely moved.
+  const autoDial = settleDial(world.autoDial, dialFrom(proxyScores(cycle, cycleHist)))
+  const dial = world.dialOverride ?? autoDial
   const weights = weightsFor(dial)
   const screen = screenPerforming(cycle)
   const triggers = triggersFrom(cycle)
@@ -76,6 +83,8 @@ function advanceWorld(rng, world, reading, liveSpread = null) {
     ...world,
     trail: [...world.trail, reading].slice(-TRAIL_LENGTH),
     cycle,
+    cycleHist,
+    autoDial,
     weights,
     releaseN: n,
     feed: [...entries, ...world.feed].slice(0, FEED_LENGTH),
@@ -91,6 +100,8 @@ export default function App() {
     const seedWorld = {
       trail: [],
       cycle: CYCLE0,
+      cycleHist: [],
+      autoDial: dialFrom(proxyScores(CYCLE0)),
       weights: weightsFor(dialFrom(proxyScores(CYCLE0))),
       releaseN: 0,
       feed: [],
@@ -130,8 +141,9 @@ export default function App() {
   const breached = risk > RUIN_CEILING
 
   // Derived Oaktree state — deterministic per cycle print, cheap to recompute.
-  const scores = useMemo(() => proxyScores(world.cycle), [world.cycle])
-  const autoDial = dialFrom(scores)
+  const scores = useMemo(() => proxyScores(world.cycle, world.cycleHist), [world.cycle, world.cycleHist])
+  const composite = dialFrom(scores)
+  const autoDial = world.autoDial
   const dial = world.dialOverride ?? autoDial
   const weights = useMemo(() => weightsFor(dial), [dial])
   const screen = useMemo(() => screenPerforming(world.cycle), [world.cycle])
@@ -340,6 +352,7 @@ export default function App() {
         <Plate plate={colePlate} key={colePlate.title} />
         <CycleGauge
           scores={scores}
+          composite={composite}
           autoDial={autoDial}
           dial={dial}
           override={world.dialOverride}

@@ -1,8 +1,8 @@
-import { postureOf } from '../engine/cycle.js'
+import { postureOf, DIAL_DEADBAND, CLIMATOLOGY_WEEKS } from '../engine/cycle.js'
 
-// Marks' market temperature: seven proxies → despair scores → the
+// Marks' market temperature: seven proxies → percentile despair scores → the
 // Aggressiveness Dial. The master risk knob above the macro compass.
-export default function CycleGauge({ scores, autoDial, dial, override, onOverride, onResume }) {
+export default function CycleGauge({ scores, composite, autoDial, dial, override, onOverride, onResume }) {
   const posture = postureOf(dial)
 
   return (
@@ -53,8 +53,10 @@ export default function CycleGauge({ scores, autoDial, dial, override, onOverrid
           </div>
           <p className="footnote" style={{ marginTop: '0.4rem' }}>
             {override === null
-              ? `Automatic: the dial is the mean despair score of the seven proxies (currently ${autoDial}).`
-              : `Manual override ratified at ${override}; the composite reads ${autoDial}. The divergence is logged.`}
+              ? composite === autoDial
+                ? `Automatic: the composite of the seven percentile scores reads ${composite}; the dial follows.`
+                : `Automatic: the composite reads ${composite}; the dial holds at ${autoDial} until the composite moves ≥ ${DIAL_DEADBAND} points.`
+              : `Manual override ratified at ${override}; the composite reads ${composite}. The divergence is logged.`}
           </p>
         </div>
       </div>
@@ -91,8 +93,11 @@ export default function CycleGauge({ scores, autoDial, dial, override, onOverrid
           </table>
         </div>
         <p className="footnote">
-          Each proxy maps to a 0–100 despair score: 0 at the froth bound, 100 at the despair bound.
-          The dial is their mean. You cannot predict the cycle — you can know where you stand in it.
+          Each proxy is scored as its percentile in a rolling {CLIMATOLOGY_WEEKS / 52}-year history —
+          a seeded climatology plus every state this session has seen — oriented so 100 = despair.
+          The dial is their mean, settled through a ±{DIAL_DEADBAND}-point deadband so noise is
+          absorbed and regime shifts pass through. You cannot predict the cycle — you can know where
+          you stand in it.
         </p>
       </div>
     </div>
