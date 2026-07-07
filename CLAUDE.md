@@ -50,10 +50,12 @@ sleeve weights, and generates one pass of decision-feed entries.
     builder (intern → analyst → memo → desk PMs → risk veto → IC debate with
     three fixed priors → Co-CEO sign-off), and the quarterly Marks-style memo
     generator (quarters advance every 3 releases)
-  - `assets.js` — 15-asset universe with ER/vol/βG/βI/βM/carry, the scoring
-    formula, five-tier ranking, and the shared model-consistent return
-    generator (`monthlyReturn`): macro-factor response + a stress-amplified
-    shared market shock (the correlation engine) + idiosyncratic noise
+  - `assets.js` — 17-asset universe with ER/vol/βG/βI/βM/carry (incl. the new
+    Merger Arbitrage and Volatility/long-convexity sleeves — item 8), the
+    scoring formula, five-tier ranking that distributes any universe size, and
+    the shared model-consistent return generator (`monthlyReturn`):
+    macro-factor response + a stress-amplified shared market shock (the
+    correlation engine) + idiosyncratic noise
   - `risk.js` — real risk math on the elected book: Ledoit–Wolf-shrunk
     covariance from the 22-year monthly history (replacing flat ρ), risk-on
     crisis-vs-calm correlation, four-season risk-parity sizing (standalone-vol

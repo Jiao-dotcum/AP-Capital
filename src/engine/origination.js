@@ -13,7 +13,16 @@ import { sourcedIdeas } from './sourcing.js'
 
 const WEIGHTS = { regime: 0.38, posture: 0.22, carry: 0.18, premium: 0.22 }
 
-function macroThesis(a, g, i) {
+function macroThesis(a, g, i, dial) {
+  // The two dial-directed alternatives sleeves get a bespoke thesis.
+  if (a.id === 'vix')
+    return dial >= 65
+      ? 'Long convexity into the despair: the sleeve bleeds premium in calm but is the cheapest insurance exactly when the dial says the crash is being paid for.'
+      : dial < 35
+        ? 'Froth: the hedge only bleeds here. Hold it small — its hour comes when the pendulum swings to fear, not now.'
+        : 'A convexity tail on the book — carried modestly until the dial commits to defense.'
+  if (a.id === 'arb')
+    return 'Merger-arb earns the deal spread like a short-vol position: steady carry in calm markets, a loss when deals break in a risk-off spasm. The froth pays the seller of insurance.'
   const geared = a.bG * g + a.bI * i
   const bits = []
   if (geared > 0.6)
@@ -49,7 +58,7 @@ export function bestIdeas({ g, i, dial, screen, deploy, cycle }) {
       type: 'Macro Sleeve',
       cls: a.cls,
       conviction,
-      thesis: macroThesis(a, g, i),
+      thesis: macroThesis(a, g, i, dial),
       drivers: [
         { label: 'Regime', value: `${Math.round(regime)}` },
         { label: 'Posture', value: `${Math.round(posture)}` },

@@ -94,7 +94,7 @@ export function ledoitWolf(R) {
 // The risk-on cohort — where "correlations converge toward one in a crisis"
 // actually bites. Averaging over the whole universe cancels (stock/bond pairs
 // are negative by design), so the convergence is measured within this set.
-export const RISK_ON = ['usEq', 'dmEq', 'emEq', 'igc', 'emd', 'gsci', 'wti', 'cu', 'fxc']
+export const RISK_ON = ['usEq', 'dmEq', 'emEq', 'igc', 'emd', 'gsci', 'wti', 'cu', 'fxc', 'arb']
 
 // Average pairwise correlation among a set of assets, from a covariance.
 function avgPairRho(cov, ids) {
@@ -129,10 +129,10 @@ export function crisisAvgRho(hist) {
 
 // ————— Four-season risk parity, dial scaling gross —————
 export const SEASONS = [
-  { name: 'Rising Growth', ids: ['usEq', 'dmEq', 'emEq', 'igc', 'emd', 'gsci', 'wti', 'cu', 'fxc'] },
-  { name: 'Falling Growth', ids: ['ust10', 'ust30', 'cgb'] },
+  { name: 'Rising Growth', ids: ['usEq', 'dmEq', 'emEq', 'igc', 'emd', 'gsci', 'wti', 'cu', 'fxc', 'arb'] },
+  { name: 'Falling Growth', ids: ['ust10', 'ust30', 'cgb', 'vix'] },
   { name: 'Rising Inflation', ids: ['tips', 'gold', 'gsci', 'wti', 'cu'] },
-  { name: 'Falling Inflation', ids: ['usEq', 'dmEq', 'ust10', 'ust30', 'igc'] },
+  { name: 'Falling Inflation', ids: ['usEq', 'dmEq', 'ust10', 'ust30', 'igc', 'arb'] },
 ]
 
 const quad = (w, cov) => {

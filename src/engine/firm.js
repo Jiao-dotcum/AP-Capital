@@ -43,6 +43,16 @@ export function buildFeed(ctx) {
     `Screens run: ${passers.length}/${screen.length} names pass the gates. Flagged ${flagged.name} — market ${flagged.marketSpread} bp vs model ${flagged.modelSpread} bp (${fmtBp(flagged.divergence)}).`,
   )
 
+  // L1b — the alternatives analyst covers the volatility & merger-arb sleeves,
+  // whose net stance the dial directs: short vol in froth, long vol in despair.
+  const volStance =
+    dial < 35
+      ? 'short vol — sell premium and hold merger-arb carry; froth pays the seller'
+      : dial >= 65
+        ? 'long vol — own convexity into the despair, where the crash pays the hedge'
+        : 'vol-neutral — arb carry with a convexity tail, waiting for the dial to commit'
+  push('L1', 'Analyst · Volatility & Arb', `Alternatives sleeves at dial ${dial}: ${volStance}.`)
+
   // L2 — senior analyst writes the memo on the flagged name
   push(
     'L2',

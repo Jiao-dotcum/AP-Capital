@@ -17,6 +17,15 @@ export const UNIVERSE = [
   { id: 'wti',   name: 'Crude Oil',                  cls: 'Real',   er: 5.8, vol: 30,  bG: 0.7,  bI: 1.4,  bM: 0.6,  carry: 4.0 },
   { id: 'cu',    name: 'Copper',                     cls: 'Real',   er: 6.2, vol: 24,  bG: 0.9,  bI: 0.8,  bM: 0.85, carry: 0.5 },
   { id: 'fxc',   name: 'G10 FX Carry Basket',        cls: 'FX',     er: 4.6, vol: 9,   bG: 0.5,  bI: 0.3,  bM: 0.7,  carry: 4.5 },
+  // ————— New sleeves (roadmap item 8), through the full pipeline —————
+  // Merger arb: a short-vol-like carry sleeve — earns the deal spread, loses
+  // when deals break in a risk-off spasm (positive market beta). Volatility:
+  // long convexity — bleeds premium in calm, pays off hard in a crash
+  // (strongly negative market beta). Held together, the book runs net-short
+  // vol in froth (arb carry) and net-long vol in despair (convexity), which
+  // is the dial doing its job.
+  { id: 'arb',   name: 'Merger Arbitrage',           cls: 'Merger Arb', er: 5.6, vol: 6.5, bG: 0.25, bI: -0.05, bM: 0.55, carry: 4.8 },
+  { id: 'vix',   name: 'Volatility (Long Convexity)', cls: 'Volatility', er: 3.6, vol: 22,  bG: -0.35, bI: 0.15, bM: -1.05, carry: -3.2 },
   { id: 'cash',  name: 'T-Bills / Cash',             cls: 'Cash',   er: 3.8, vol: 0.6, bG: 0.0,  bI: 0.0,  bM: 0.0,  carry: 0.0 },
 ]
 
@@ -61,10 +70,21 @@ export const TIER_NAMES = [
   { numeral: 'V', name: 'Avoid / Short' },
 ]
 
-// Rank the universe on the current surprises and split into five tiers of three.
+// Rank the universe on the current surprises and split into five tiers,
+// distributing all assets as evenly as possible (front tiers carry the
+// remainder) so the whole universe is ranked however large it grows.
 export function rankIntoTiers(g, i) {
   const scored = UNIVERSE.map((a) => ({ ...a, score: scoreAsset(a, g, i) })).sort(
     (x, y) => y.score - x.score,
   )
-  return TIER_NAMES.map((t, k) => ({ ...t, assets: scored.slice(k * 3, k * 3 + 3) }))
+  const n = scored.length
+  const base = Math.floor(n / TIER_NAMES.length)
+  const extra = n % TIER_NAMES.length
+  let cursor = 0
+  return TIER_NAMES.map((t, k) => {
+    const size = base + (k < extra ? 1 : 0)
+    const assets = scored.slice(cursor, cursor + size)
+    cursor += size
+    return { ...t, assets }
+  })
 }
