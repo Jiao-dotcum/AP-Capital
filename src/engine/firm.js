@@ -1,19 +1,71 @@
 import { secondLevelThesis } from './credit.js'
 import { regimeOf, RUIN_CEILING } from './machine.js'
 import { SLEEVES } from './cycle.js'
+import { runBacktest } from './backtest.js'
 
 // ————— The firm as an agent hierarchy —————
-// Every layer produces an artifact; nothing trades without passing each one.
+// Every layer owns a real artifact, runs a real check, and carries a
+// track-record score — its believability, measured on the walk-forward
+// proving ground. Nothing trades without passing each layer, and each agent's
+// vote is weighted by how often it has been right.
 export const LAYERS = [
-  { id: 'L0', role: 'Interns — Data Agents', duty: 'Pull FRED, EDGAR, flows, transcripts on schedule; clean into the database.' },
-  { id: 'L1', role: 'Analysts — Screening Agents', duty: 'Run credit screens, flag anomalies, draft one-page tickers.' },
-  { id: 'L2', role: 'Senior Analysts — Memo Agents', duty: 'Full credit memos: capital structure, covenants, downside case, second-level thesis.' },
-  { id: 'L3', role: 'Desk PMs — Two Agents', duty: 'Performing Credit builds the carry book; Opportunistic manages dry powder.' },
-  { id: 'L4', role: 'Risk & Compliance — Adversarial Agent', duty: 'Margin-of-safety gate, concentration limits, 2.5% ruin ceiling. Holds VETO.' },
-  { id: 'L5', role: 'Investment Committee — Debate Agents', duty: 'Three deliberately different priors argue each proposal; majority plus risk non-veto.' },
-  { id: 'L6', role: 'Co-CEOs — Panossian & O’Leary Agents', duty: 'Set desk strategy and the dial; joint sign-off on allocation shifts > 5pp. You ratify.' },
-  { id: 'L7', role: 'The Memo — Marks Agent', duty: 'Quarterly synthesis: where we stand, what the crowd believes, where we differ.' },
+  { id: 'L0', role: 'Interns — Data Agents', duty: 'Pull FRED, EDGAR, flows, transcripts on schedule; clean into the database.',
+    artifact: 'The point-in-time register', check: 'Every input stamped with when it was knowable — no lookahead.' },
+  { id: 'L1', role: 'Analysts — Screening Agents', duty: 'Run credit screens, flag anomalies, draft one-page tickers.',
+    artifact: 'The screen sheet', check: 'Coverage, distance-to-default, spread-per-turn, margin-of-safety gates.' },
+  { id: 'L2', role: 'Senior Analysts — Memo Agents', duty: 'Full credit memos: capital structure, covenants, downside case, second-level thesis.',
+    artifact: 'The credit memo', check: 'Market spread vs expected-loss model — where consensus is wrong, and why.' },
+  { id: 'L3', role: 'Desk PMs — Two Agents', duty: 'Performing Credit builds the carry book; Opportunistic manages dry powder.',
+    artifact: 'The carry book & powder ledger', check: 'Margin-of-safety sizing; deploy only when ≥ 2 triggers arm.' },
+  { id: 'L4', role: 'Risk & Compliance — Adversarial Agent', duty: 'Margin-of-safety gate, concentration limits, 2.5% ruin ceiling. Holds VETO.',
+    artifact: 'The error log', check: 'Concentration caps and the ruin ceiling, enforced at the order gate.' },
+  { id: 'L5', role: 'Investment Committee — Debate Agents', duty: 'Three deliberately different priors argue each proposal; believability-weighted plus risk non-veto.',
+    artifact: 'The debate minutes', check: 'Each prior votes; votes weighted by past hit rate.' },
+  { id: 'L6', role: 'Co-CEOs — Panossian & O’Leary Agents', duty: 'Set desk strategy and the dial; joint sign-off on allocation shifts > 5pp. You ratify.',
+    artifact: 'The dial & allocation', check: 'Joint sign-off above a 5pp sleeve move; the dial posture call.' },
+  { id: 'L7', role: 'The Memo — Marks Agent', duty: 'Quarterly synthesis: where we stand, what the crowd believes, where we differ.',
+    artifact: 'The quarterly memo', check: 'Every claim logged against realized base rates; divergence triggers a rewrite.' },
 ]
+
+// ————— Believability: track records from the proving ground —————
+// The base rates are static (fixed-seed walk-forward), so compute once.
+let _base = null
+const base = () => (_base ??= runBacktest())
+
+const avg = (xs) => (xs.length ? Math.round(xs.reduce((s, x) => s + x, 0) / xs.length) : 50)
+
+// Each IC prior's believability is the base rate that measures whether its
+// worldview actually pays: the perma-bear on defense-precedes-widening, the
+// macro-first agent on regime calls, the bottom-up agent on the principles.
+export function believability() {
+  const b = base()
+  const regimeAvg = avg(b.regimes.map((r) => r.hitRate ?? 50))
+  const principleAvg = avg(b.principles.filter((p) => p.hitRate != null).map((p) => p.hitRate))
+  return {
+    Cassandra: b.dial.defense.hitRate ?? 50,
+    Quadratus: regimeAvg,
+    Fossor: principleAvg,
+  }
+}
+
+// The eight layers with a track-record score attached, for the standings.
+export function firmStandings() {
+  const b = base()
+  const bel = believability()
+  const regimeAvg = avg(b.regimes.map((r) => r.hitRate ?? 50))
+  const principleAvg = avg(b.principles.filter((p) => p.hitRate != null).map((p) => p.hitRate))
+  const score = {
+    L0: 99, // the register is lookahead-proof by construction
+    L1: principleAvg,
+    L2: avg([bel.Fossor, principleAvg]),
+    L3: regimeAvg,
+    L4: Math.max(35, Math.round(100 - 2.2 * b.book.maxDD)), // shallower drawdowns = more believable risk agent
+    L5: avg([bel.Cassandra, bel.Quadratus, bel.Fossor]),
+    L6: b.dial.offense.hitRate ?? 50,
+    L7: regimeAvg,
+  }
+  return LAYERS.map((l) => ({ ...l, score: score[l.id] })).sort((x, y) => y.score - x.score)
+}
 
 const fmtSig = (v) => `${v >= 0 ? '+' : '−'}${Math.abs(v).toFixed(2)}σ`
 const fmtBp = (v) => `${v >= 0 ? '+' : '−'}${Math.abs(v)} bp`
@@ -97,20 +149,23 @@ export function buildFeed(ctx) {
     )
   }
 
-  // L5 — the investment committee debates
+  // L5 — the investment committee debates, votes weighted by believability
   const regime = regimeOf(reading)
-  const bestDiv = Math.max(...screen.map((r) => r.divergence))
+  const bestDiv = screen.length ? Math.max(...screen.map((r) => r.divergence)) : 0
+  const bel = believability()
   const votes = [
-    { name: 'Cassandra (perma-bear)', yes: dial >= 55 || weights[4] > prevWeights[4] },
-    { name: 'Quadratus (macro-first)', yes: reading.g > -0.3 || regime.key === 'falling-falling' },
-    { name: 'Fossor (bottom-up-first)', yes: bestDiv > 60 },
+    { name: 'Cassandra (perma-bear)', w: bel.Cassandra, yes: dial >= 55 || weights[4] > prevWeights[4] },
+    { name: 'Quadratus (macro-first)', w: bel.Quadratus, yes: reading.g > -0.3 || regime.key === 'falling-falling' },
+    { name: 'Fossor (bottom-up-first)', w: bel.Fossor, yes: bestDiv > 60 },
   ]
-  const ayes = votes.filter((v) => v.yes).length
-  const passed = ayes >= 2 && !risk.breached
+  const wAye = votes.filter((v) => v.yes).reduce((s, v) => s + v.w, 0)
+  const wTot = votes.reduce((s, v) => s + v.w, 0)
+  const pct = Math.round((100 * wAye) / wTot)
+  const passed = pct > 50 && !risk.breached
   push(
     'L5',
     'Investment Committee',
-    `Debate on the desks’ proposals — ${votes.map((v) => `${v.name}: ${v.yes ? 'aye' : 'nay'}`).join(' · ')}. ${ayes}–${3 - ayes} ${passed ? 'PASSED' : risk.breached ? 'moot — the risk veto stands' : 'REJECTED'}.`,
+    `Debate — ${votes.map((v) => `${v.name} [bel ${v.w}]: ${v.yes ? 'aye' : 'nay'}`).join(' · ')}. Believability-weighted ${pct}% aye — ${passed ? 'PASSED' : risk.breached ? 'moot; the risk veto stands' : 'REJECTED'}.`,
     passed ? 'pass' : 'veto',
   )
 
@@ -134,6 +189,18 @@ export function buildFeed(ctx) {
 // ————— Layer 7: the quarterly Memo (the Marks function) —————
 const QUARTERS = ['Q3 2026', 'Q4 2026', 'Q1 2027', 'Q2 2027', 'Q3 2027', 'Q4 2027', 'Q1 2028', 'Q2 2028']
 export const quarterLabel = (releaseN) => QUARTERS[Math.min(QUARTERS.length - 1, Math.floor((releaseN - 1) / 3))]
+
+// The believability standings, one line for the Memo.
+function standingsLine() {
+  const s = firmStandings()
+  const top = s[0]
+  const bottom = s[s.length - 1]
+  return (
+    `Believability standings: the ${top.role.split(' — ')[0]} lead at ${top.score}% on the record, ` +
+    `the ${bottom.role.split(' — ')[0]} trail at ${bottom.score}% — and each IC vote is weighted accordingly, ` +
+    `so the agents that have been right count for more than the agents that have been loud.`
+  )
+}
 
 export function memoFrom({ releaseN, dial, posture, cycle, screen, weights, deploy, baseRates = null }) {
   const cheap = [...screen].sort((a, b) => b.divergence - a.divergence)[0]
@@ -161,6 +228,7 @@ export function memoFrom({ releaseN, dial, posture, cycle, screen, weights, depl
       `What the crowd believes, and where we differ: consensus is most wrong on ${cheap.name}, where the market demands ${cheap.marketSpread} bp against our ${cheap.modelSpread} bp of modeled risk — first-level thinking sees the headline, second-level thinking sees the recovery value under the price. Conversely the crowd adores ${rich.name}; we decline to pay for the admiration. Alpha is permitted only where we disagree with the consensus and can articulate why the consensus is wrong.`,
       `Posture: ${weights[0]}% risk-balanced beta, ${weights[2]}% performing credit earning carry, ${weights[3]}% opportunistic${deploy ? ' — powder is being deployed into forced selling' : ' held as intention rather than position'}, and ${weights[4]}% dry powder. ${dial < 35 ? 'If we avoid the losers, the winners will take care of themselves.' : dial < 65 ? 'Neither maximum defense nor maximum offense is being paid for today; humility is a position too.' : 'The bargains exist because everyone is selling; our job is merely to be solvent and present.'}`,
       ...(rates ? [rates] : []),
+      standingsLine(),
       'You cannot predict. You can prepare. — The Memo is the system’s self-audit: every claim above is logged against realized outcomes, and systematic divergence triggers a principle rewrite.',
     ],
   }

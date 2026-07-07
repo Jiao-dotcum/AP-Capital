@@ -46,10 +46,14 @@ sleeve weights, and generates one pass of decision-feed entries.
     ratings-transition matrix; MoS-based sizing with single-name/sector
     concentration caps at the gate; opportunistic proxy vehicles. Deterministic
     per cycle print (hash, not rng)
-  - `firm.js` — the 8-layer agent hierarchy roster, per-release decision-feed
-    builder (intern → analyst → memo → desk PMs → risk veto → IC debate with
-    three fixed priors → Co-CEO sign-off), and the quarterly Marks-style memo
-    generator (quarters advance every 3 releases)
+  - `firm.js` — the 8-layer agent hierarchy: each layer owns a real artifact,
+    runs a named check, and carries a believability score measured on the
+    walk-forward proving ground (`firmStandings`); the per-release decision
+    feed (intern → analyst → alternatives analyst → memo → desk PMs → risk
+    veto → believability-weighted IC debate → Co-CEO sign-off); the quarterly
+    Marks-style memo (quarters advance every 3 releases), which quotes the base
+    rates and the standings. IC votes are weighted by past hit rate, so agents
+    that have been right count for more than agents that have been loud
   - `assets.js` — 17-asset universe with ER/vol/βG/βI/βM/carry (incl. the new
     Merger Arbitrage and Volatility/long-convexity sleeves — item 8), the
     scoring formula, five-tier ranking that distributes any universe size, and

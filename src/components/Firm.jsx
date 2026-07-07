@@ -1,23 +1,31 @@
-import { LAYERS } from '../engine/firm.js'
+import { LAYERS, firmStandings } from '../engine/firm.js'
 
 // Layer roster, the live decision feed, and the quarterly Memo.
 export default function Firm({ feed, memo, vetoCount, live, onConvene, convening, firmStatus }) {
+  const standings = firmStandings()
+  const scoreOf = Object.fromEntries(standings.map((s) => [s.id, s.score]))
   return (
     <div>
       <div className="grid-2">
         <div className="panel panel--quiet">
-          <h3 className="panel__title">The Hierarchy — Eight Layers, One Pipeline</h3>
+          <h3 className="panel__title">The Hierarchy — Artifact, Check, Believability</h3>
           {LAYERS.map((l) => (
             <div key={l.id} className="layer">
               <span className="layer__id mono">{l.id}</span>
-              <div>
-                <div className="layer__role">{l.role}</div>
-                <div className="gear__note">{l.duty}</div>
+              <div style={{ flex: 1 }}>
+                <div className="layer__role">
+                  {l.role}
+                  <span className="num" style={{ float: 'right', color: 'var(--bronze)' }}>{scoreOf[l.id]}%</span>
+                </div>
+                <div className="gear__note">
+                  <b>Owns:</b> {l.artifact}. <b>Checks:</b> {l.check}
+                </div>
               </div>
             </div>
           ))}
           <p className="footnote">
-            Decisions flow up; nothing trades without passing every layer. The Error Log stands at{' '}
+            Believability is each layer&apos;s track record on the walk-forward proving ground; IC
+            votes are weighted by it. The Error Log stands at{' '}
             <span className="num">{vetoCount}</span> logged veto{vetoCount === 1 ? '' : 'es'} this
             session — Pain + Reflection = Progress.
           </p>
