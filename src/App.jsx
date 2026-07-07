@@ -23,6 +23,7 @@ import { buildRiskReport } from './engine/risk.js'
 import { fetchLiveMacro } from './live/fetchLive.js'
 import { fetchFredMacro } from './live/fred.js'
 import { conveneFirm } from './live/convene.js'
+import { fetchEdgarFundamentals, staticBenchmarks } from './live/edgar.js'
 import { emptyPit, pitAppend, serializePit, deserializePit } from './engine/pit.js'
 import { Plate, PLATES } from './components/art.jsx'
 import {
@@ -130,6 +131,9 @@ export default function App() {
   })
   const [convening, setConvening] = useState(false)
   const [firmStatus, setFirmStatus] = useState('')
+  const [edgar, setEdgar] = useState(() => staticBenchmarks())
+  const [edgarFetching, setEdgarFetching] = useState(false)
+  const [edgarStatus, setEdgarStatus] = useState(null)
 
   useEffect(() => {
     try {
@@ -298,6 +302,27 @@ export default function App() {
     }
   }
 
+  // Live credit fundamentals from SEC EDGAR XBRL; falls back to the offline
+  // structural estimates on any failure, per issuer.
+  const fetchEdgar = async () => {
+    setEdgarFetching(true)
+    setEdgarStatus({ kind: 'idle', text: 'Pulling companyfacts from data.sec.gov via web_fetch…' })
+    try {
+      const rows = await fetchEdgarFundamentals(apiKey.trim())
+      setEdgar(rows)
+      const live = rows.filter((r) => !r.error).length
+      setEdgarStatus({
+        kind: live ? 'live' : 'error',
+        text: `EDGAR: ${live}/${rows.length} issuers parsed from live XBRL filings.`,
+      })
+    } catch (err) {
+      setEdgar(staticBenchmarks())
+      setEdgarStatus({ kind: 'error', text: `EDGAR pull failed (${err.message}) — showing offline estimates.` })
+    } finally {
+      setEdgarFetching(false)
+    }
+  }
+
   const toggleAsset = (id) =>
     setElected((prev) => {
       const next = new Set(prev)
@@ -411,6 +436,10 @@ export default function App() {
           deploy={deploy}
           cycle={world.cycle}
           powderPct={weights[4] + (deploy ? 0 : weights[3])}
+          edgar={edgar}
+          onFetchEdgar={fetchEdgar}
+          edgarFetching={edgarFetching}
+          edgarStatus={edgarStatus}
         />
       </section>
 

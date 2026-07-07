@@ -36,11 +36,16 @@ sleeve weights, and generates one pass of decision-feed entries.
     (`settleDial`) so it doesn't whipsaw; five-sleeve anchor allocations
     interpolated by dial, dry-powder deployment triggers (≥ 2 armed
     authorizes)
-  - `credit.js` — 10-issuer performing-credit universe; screens (coverage,
-    distance-to-default, spread-per-turn, margin-of-safety gate), consensus
-    divergence (market vs model spread — second-level thinking), MoS-based
-    sizing, opportunistic proxy vehicles. Deterministic per cycle print (hash,
-    not rng)
+  - `credit.js` — 10-issuer performing-credit universe from structural
+    fundamentals (leverage, coverage, EV multiple, asset volatility, recovery);
+    Merton distance-to-default computed from asset value/vol, PD via an
+    empirically-calibrated DtD→default map (KMV-style, since the Gaussian tail
+    is miscalibrated), expected-loss pricing (PD × LGD) as the model-fair
+    spread; screens (coverage, DtD, spread-per-turn, margin-of-safety gate);
+    market vs model divergence (second-level thinking); a one-year
+    ratings-transition matrix; MoS-based sizing with single-name/sector
+    concentration caps at the gate; opportunistic proxy vehicles. Deterministic
+    per cycle print (hash, not rng)
   - `firm.js` — the 8-layer agent hierarchy roster, per-release decision-feed
     builder (intern → analyst → memo → desk PMs → risk veto → IC debate with
     three fixed priors → Co-CEO sign-off), and the quarterly Marks-style memo
@@ -89,6 +94,12 @@ sleeve weights, and generates one pass of decision-feed entries.
   defensive JSON parsing; converts prints to surprise σ and anchors the cycle
   via `cycleFromSpread`. The chain is FRED → web search → simulation, with the
   active source named in the status line.
+- `src/live/edgar.js` — optional live credit fundamentals: one web_fetch
+  Messages API call per benchmark issuer retrieves its SEC EDGAR companyfacts
+  XBRL (data.sec.gov sends no CORS headers, same as FRED); coverage and
+  leverage are parsed deterministically from the filings and run through the
+  same Merton → PD → expected-loss pipeline as the simulated desk. Per-issuer
+  fallback to offline structural estimates.
 - `src/live/convene.js` — optional live-firm call: one Messages API request
   returns the IC debate votes and a Marks-voice memo as JSON; defensively
   parsed; callers fall back to the simulated firm.
