@@ -45,8 +45,17 @@ sleeve weights, and generates one pass of decision-feed entries.
     builder (intern → analyst → memo → desk PMs → risk veto → IC debate with
     three fixed priors → Co-CEO sign-off), and the quarterly Marks-style memo
     generator (quarters advance every 3 releases)
-  - `assets.js` — 15-asset universe with ER/vol/βG/βI/carry, the scoring
-    formula, five-tier ranking
+  - `assets.js` — 15-asset universe with ER/vol/βG/βI/βM/carry, the scoring
+    formula, five-tier ranking, and the shared model-consistent return
+    generator (`monthlyReturn`): macro-factor response + a stress-amplified
+    shared market shock (the correlation engine) + idiosyncratic noise
+  - `risk.js` — real risk math on the elected book: Ledoit–Wolf-shrunk
+    covariance from the 22-year monthly history (replacing flat ρ), risk-on
+    crisis-vs-calm correlation, four-season risk-parity sizing (standalone-vol
+    equalization, robust to hedge sleeves) with the dial scaling gross
+    0.5×–1.5×, CVaR (95/99% expected shortfall), a drawdown-triggered
+    de-risking schedule, and a block-bootstrap Monte Carlo (six-month blocks
+    → fat tails) with named crisis replays (2008, Mar-2020, 2022)
   - `origination.js` — the Origination Desk: composite conviction scores
     (regime fit, cycle-posture fit, carry, risk-adjusted premium, credit
     divergence) → the ranked best-ideas docket (top 8); nominates only, never
@@ -62,9 +71,11 @@ sleeve weights, and generates one pass of decision-feed entries.
     generator; reports per-principle hit rates, regime hit rates, dial
     posture hit rates, turnover with/without the deadband, and book
     CAGR/vol/max-drawdown; the quarterly Memo quotes these base rates
-  - `montecarlo.js` — equal-weight portfolio moments (pairwise ρ = 0.25),
-    400-path GBM fan (fixed seed → identical elections reproduce identical
-    fans), analytic lognormal ledger rows
+  - `montecarlo.js` — equal-weight portfolio moments (pairwise ρ = 0.25
+    fallback), 400-path GBM fan (fixed seed → identical elections reproduce
+    identical fans); accepts override moments so the fan can be driven by the
+    risk-parity book on the Ledoit–Wolf covariance from `risk.js`; analytic
+    lognormal ledger rows
 - `src/live/fred.js` — primary live path: one Messages API call with the
   web_fetch server tool retrieves an exact `fredgraph.csv` (GDPNow, CPI,
   Cleveland Fed 1y expected inflation, DGS1, DFF, HY OAS — FRED quotes OAS in

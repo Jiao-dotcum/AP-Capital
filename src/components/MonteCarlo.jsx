@@ -1,14 +1,20 @@
 import { useMemo } from 'react'
 import { simulateFan, annualized, N_PATHS, N_QUARTERS, PAIRWISE_RHO } from '../engine/montecarlo.js'
+import RiskMath from './RiskMath.jsx'
 
 const W = 760
 const H = 400
 const M = { top: 20, right: 20, bottom: 40, left: 62 }
 
 // Percentile fan chart (5/25/50/75/95) of 400 GBM paths, growth of 100,
-// ten years at quarterly steps. Recomputes on any selection change.
-export default function MonteCarlo({ assets }) {
-  const fan = useMemo(() => simulateFan(assets), [assets])
+// ten years at quarterly steps. Recomputes on any selection change. When a
+// risk report is supplied the fan is driven by the risk-parity book on the
+// Ledoit–Wolf covariance rather than the equal-weight ρ = 0.25 fallback.
+export default function MonteCarlo({ assets, risk = null }) {
+  const fan = useMemo(
+    () => simulateFan(assets, risk ? risk.moments : null),
+    [assets, risk],
+  )
 
   if (!fan) {
     return (
@@ -42,9 +48,12 @@ export default function MonteCarlo({ assets }) {
   ]
 
   return (
+    <>
     <div className="grid-hero">
       <div className="panel">
-        <h3 className="panel__title">Growth of 100 — {assets.length} Elected Holdings, Equal Weight</h3>
+        <h3 className="panel__title">
+          Growth of 100 — {assets.length} Elected Holdings, {risk ? 'Risk Parity' : 'Equal Weight'}
+        </h3>
         <svg
           className="fan-svg"
           viewBox={`0 0 ${W} ${H}`}
@@ -96,9 +105,12 @@ export default function MonteCarlo({ assets }) {
           <rect x={M.left} y={M.top} width={W - M.left - M.right} height={H - M.top - M.bottom} fill="none" stroke="var(--bronze)" strokeWidth="1" />
         </svg>
         <p className="footnote">
-          {N_PATHS} geometric Brownian paths, {N_QUARTERS} quarterly steps, pairwise correlation
-          assumption ρ = {PAIRWISE_RHO}. Portfolio μ {(mu * 100).toFixed(1)}% · σ{' '}
-          {(sigma * 100).toFixed(1)}% annualized. Seeded — identical elections reproduce identical fans.
+          {N_PATHS} geometric Brownian paths, {N_QUARTERS} quarterly steps.{' '}
+          {risk
+            ? `Risk-parity book on the Ledoit–Wolf-shrunk covariance (δ = ${risk.lw.delta}), dial gross ${risk.rp.gross}×.`
+            : `Pairwise correlation assumption ρ = ${PAIRWISE_RHO}, equal weight.`}{' '}
+          Portfolio μ {(mu * 100).toFixed(1)}% · σ {(sigma * 100).toFixed(1)}% annualized. Seeded —
+          identical elections reproduce identical fans.
         </p>
         <style>{`
           .fan-tick { font-family: var(--font-mono); font-size: 10.5px; fill: var(--limestone); }
@@ -135,6 +147,8 @@ export default function MonteCarlo({ assets }) {
         </p>
       </div>
     </div>
+    <RiskMath report={risk} />
+    </>
   )
 }
 

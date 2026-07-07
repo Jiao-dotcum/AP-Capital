@@ -27,8 +27,10 @@ export function portfolioMoments(assets) {
 }
 
 // 400 GBM paths of growth-of-100 over 10 years; percentile bands per quarter.
-export function simulateFan(assets) {
-  const moments = portfolioMoments(assets)
+// Pass `override` moments (risk-parity weights on the Ledoit–Wolf covariance
+// from risk.js) to replace the equal-weight ρ = 0.25 fallback.
+export function simulateFan(assets, override = null) {
+  const moments = override ?? portfolioMoments(assets)
   if (!moments) return null
   const { mu, sigma } = moments
   const rng = mulberry32(MC_SEED)

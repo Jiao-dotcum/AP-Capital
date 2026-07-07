@@ -2,7 +2,7 @@ import { mulberry32, normal } from './prng.js'
 import { drawReading, regimeOf, QUADRANTS } from './machine.js'
 import { CYCLE0, evolveCycle, proxyScores, dialFrom, settleDial, weightsFor, DIAL_DEADBAND } from './cycle.js'
 import { PRINCIPLES } from './rules.js'
-import { UNIVERSE } from './assets.js'
+import { UNIVERSE, monthlyReturn as assetMonthlyReturn, stressAmp } from './assets.js'
 
 // ————— The walk-forward proving ground —————
 // Freeze the rules at date T using only data knowable at T, step one release
@@ -15,19 +15,11 @@ import { UNIVERSE } from './assets.js'
 export const BACKTEST_SEED = 20040705
 export const BACKTEST_MONTHS = 264 // twenty-two years of monthly releases
 
-const A = Object.fromEntries(UNIVERSE.map((a) => [a.id, a]))
-const SURPRISE_PP = 0.8 // % of monthly return per σ of surprise per unit beta
-
-// Model-consistent monthly return: drift + factor response + idiosyncratic
-// noise. The harness asks whether the rules extract the structure the world
-// actually has — including the noise that hides it.
-function monthlyReturn(a, reading, rng) {
-  return (
-    a.er / 12 +
-    SURPRISE_PP * (a.bG * reading.g + a.bI * reading.i) +
-    (a.vol / Math.sqrt(12)) * normal(rng)
-  )
-}
+// The shared model-consistent return generator lives in assets.js; the
+// harness asks whether the rules extract the structure the world actually
+// has — including the noise that hides it. `common` is the month's market
+// shock, drawn once and shared across assets to create correlation.
+const monthlyReturn = (a, reading, rng, common) => assetMonthlyReturn(a, reading, rng, normal, common)
 
 const basket = (rets, ids) => ids.reduce((s, id) => s + rets[id], 0) / ids.length
 
@@ -98,7 +90,9 @@ export function runBacktest(seed = BACKTEST_SEED, months = BACKTEST_MONTHS) {
     cycle = evolveCycle(rng, cycle, reading)
 
     // Realize T's returns and grade T−1's decisions before deciding anew.
-    const rets = Object.fromEntries(UNIVERSE.map((a) => [a.id, monthlyReturn(a, reading, rng)]))
+    // One market shock per month, shared across assets and amplified in stress.
+    const common = normal(rng) * stressAmp(reading)
+    const rets = Object.fromEntries(UNIVERSE.map((a) => [a.id, monthlyReturn(a, reading, rng, common)]))
     if (pending) {
       for (const id of pending.fired) {
         principles[id].fires += 1

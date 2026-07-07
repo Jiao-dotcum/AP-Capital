@@ -19,6 +19,7 @@ import { screenPerforming } from './engine/credit.js'
 import { bestIdeas } from './engine/origination.js'
 import { buildFeed, memoFrom, quarterLabel } from './engine/firm.js'
 import { runBacktest } from './engine/backtest.js'
+import { buildRiskReport } from './engine/risk.js'
 import { fetchLiveMacro } from './live/fetchLive.js'
 import { fetchFredMacro } from './live/fred.js'
 import { conveneFirm } from './live/convene.js'
@@ -178,6 +179,13 @@ export default function App() {
     dial < 35 ? PLATES.coleConsummation : dial < 65 ? PLATES.coleArcadian : PLATES.coleDestruction
 
   const electedAssets = useMemo(() => UNIVERSE.filter((a) => elected.has(a.id)), [elected])
+
+  // Real risk math: Ledoit–Wolf covariance, risk-parity sizing with the dial
+  // scaling gross, CVaR, and the block-bootstrap replays for the elected book.
+  const riskReport = useMemo(
+    () => buildRiskReport(electedAssets, dial),
+    [electedAssets, dial],
+  )
 
   // The Origination Desk re-ranks its docket from the same derived signals.
   const ideas = useMemo(
@@ -447,7 +455,7 @@ export default function App() {
           title="Monte Carlo Simulation"
           note="Four hundred paths of the elected book over ten years. The distribution is the forecast."
         />
-        <MonteCarlo assets={electedAssets} />
+        <MonteCarlo assets={electedAssets} risk={riskReport} />
       </section>
 
       <ColumnDivider />
