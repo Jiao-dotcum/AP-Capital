@@ -2,9 +2,11 @@ import { releasesFrom } from '../engine/machine.js'
 
 const sig = (v) => `${v >= 0 ? '+' : '−'}${Math.abs(v).toFixed(2)}σ`
 
-// Priced-in vs actual vs surprise, derived from the surprise state.
-export default function Releases({ current }) {
-  const rows = releasesFrom(current)
+// Priced-in vs actual vs surprise. When a live tape is supplied the rows are
+// real point-in-time prints against market-implied expectations; otherwise
+// they are derived from the surprise state against priced-in constants.
+export default function Releases({ current, tape = null }) {
+  const rows = tape ?? releasesFrom(current)
   return (
     <div className="panel panel--quiet" style={{ marginTop: 'var(--space-3)' }}>
       <div className="lbl lbl--ink" style={{ textAlign: 'center', marginBottom: 'var(--space-2)' }}>
@@ -35,9 +37,11 @@ export default function Releases({ current }) {
         </table>
       </div>
       <p className="footnote" style={{ textAlign: 'center' }}>
-        {current.source === 'live'
-          ? 'Latest reading converted from live prints against priced-in constants.'
-          : 'Prints are simulated against priced-in constants with a seeded generator — reproducible by design.'}
+        {tape
+          ? 'Real point-in-time prints — priced-in from market-implied expectations where an instrument exists (breakeven inflation, the 1y Treasury policy path); growth against the documented consensus constant.'
+          : current.source === 'live'
+            ? 'Latest reading converted from live prints against priced-in constants.'
+            : 'Prints are simulated against priced-in constants with a seeded generator — reproducible by design.'}
       </p>
     </div>
   )

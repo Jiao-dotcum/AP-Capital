@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { mulberry32 } from './engine/prng.js'
 import { drawReading, riskOfRuin, RUIN_CEILING } from './engine/machine.js'
 import { UNIVERSE } from './engine/assets.js'
@@ -17,7 +17,9 @@ import { screenPerforming } from './engine/credit.js'
 import { bestIdeas } from './engine/origination.js'
 import { buildFeed, memoFrom, quarterLabel } from './engine/firm.js'
 import { fetchLiveMacro } from './live/fetchLive.js'
+import { fetchFredMacro } from './live/fred.js'
 import { conveneFirm } from './live/convene.js'
+import { emptyPit, pitAppend, serializePit, deserializePit } from './engine/pit.js'
 import { Plate, PLATES } from './components/art.jsx'
 import {
   Masthead,
@@ -27,6 +29,7 @@ import {
   Footer,
 } from './components/chrome.jsx'
 import Compass from './components/Compass.jsx'
+import Provenance from './components/Provenance.jsx'
 import Gears from './components/Gears.jsx'
 import Releases from './components/Releases.jsx'
 import CycleGauge from './components/CycleGauge.jsx'
@@ -42,6 +45,7 @@ import Firm from './components/Firm.jsx'
 import Safeguards from './components/Safeguards.jsx'
 
 const SEED = 20260705
+const PIT_KEY = 'apcap-pit-v1'
 const TRAIL_LENGTH = 6
 const FEED_LENGTH = 32
 const DEFAULT_ELECTED = ['usEq', 'ust10', 'tips', 'gold', 'gsci', 'cash']
@@ -101,8 +105,25 @@ export default function App() {
   const [status, setStatus] = useState({ kind: 'idle', text: 'Feed: simulated · seeded generator' })
   const [fetching, setFetching] = useState(false)
   const [liveMemo, setLiveMemo] = useState(null)
+  const [liveTape, setLiveTape] = useState(null)
+  // The append-only point-in-time register persists across sessions.
+  const [pit, setPit] = useState(() => {
+    try {
+      return deserializePit(window.localStorage.getItem(PIT_KEY))
+    } catch {
+      return emptyPit()
+    }
+  })
   const [convening, setConvening] = useState(false)
   const [firmStatus, setFirmStatus] = useState('')
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(PIT_KEY, serializePit(pit))
+    } catch {
+      /* storage unavailable — the register lives in memory only */
+    }
+  }, [pit])
 
   const current = world.trail[world.trail.length - 1]
   const risk = riskOfRuin(current)
@@ -151,25 +172,56 @@ export default function App() {
     const reading = drawReading(engine.rng, current)
     setWorld((w) => advanceWorld(engine.rng, w, reading))
     setLiveMemo(null)
+    setLiveTape(null)
     setFirmStatus('')
     setStatus({ kind: 'idle', text: 'Feed: simulated · seeded generator' })
   }
 
+  // Live chain: FRED point-in-time first (exact prints, market-implied
+  // priced-in), the web-search estimate second, simulation last. Every live
+  // input lands in the append-only register with its knowable-at timestamp.
   const fetchLive = async () => {
     setFetching(true)
-    setStatus({ kind: 'idle', text: 'Consulting the wire — web search in progress…' })
+    setStatus({ kind: 'idle', text: 'Consulting the wire — FRED point-in-time fetch in progress…' })
     try {
-      const { prints, reading } = await fetchLiveMacro(apiKey.trim())
-      setWorld((w) => advanceWorld(engine.rng, w, reading, prints.hy_oas))
+      const { reading, tape, hyOasBp, prints, records } = await fetchFredMacro(apiKey.trim())
+      setWorld((w) => advanceWorld(engine.rng, w, reading, hyOasBp))
+      setPit((p) => pitAppend(p, records))
+      setLiveTape(tape)
       setLiveMemo(null)
       setFirmStatus('')
       setStatus({
         kind: 'live',
-        text: `Feed: live · GDP ${prints.gdp_saar}% · Core CPI ${prints.core_cpi_yoy}% · Policy ${prints.policy_rate}% · HY OAS ${prints.hy_oas} bp`,
+        text: `Feed: live · FRED point-in-time · GDPNow ${prints.gdp_now}% · CPI ${prints.cpi_yoy}% vs ${prints.expinf_1y}% expected · HY OAS ${prints.hy_oas} bp`,
+      })
+      setFetching(false)
+      return
+    } catch (fredErr) {
+      setStatus({ kind: 'idle', text: `FRED fetch failed (${fredErr.message}) — trying web search…` })
+    }
+    try {
+      const { prints, reading } = await fetchLiveMacro(apiKey.trim())
+      setWorld((w) => advanceWorld(engine.rng, w, reading, prints.hy_oas))
+      const knownAt = new Date().toISOString()
+      setPit((p) =>
+        pitAppend(p, [
+          { series: 'GDP_SAAR', label: 'Real GDP, SAAR (web search)', unit: '%', value: prints.gdp_saar, obsDate: knownAt.slice(0, 10), knownAt, source: 'web-search' },
+          { series: 'CORE_CPI_YOY', label: 'Core CPI, YoY (web search)', unit: '%', value: prints.core_cpi_yoy, obsDate: knownAt.slice(0, 10), knownAt, source: 'web-search' },
+          { series: 'POLICY_RATE', label: 'Policy Rate, Target (web search)', unit: '%', value: prints.policy_rate, obsDate: knownAt.slice(0, 10), knownAt, source: 'web-search' },
+          { series: 'HY_OAS', label: 'HY OAS (web search)', unit: 'bp', value: prints.hy_oas, obsDate: knownAt.slice(0, 10), knownAt, source: 'web-search' },
+        ]),
+      )
+      setLiveTape(null)
+      setLiveMemo(null)
+      setFirmStatus('')
+      setStatus({
+        kind: 'live',
+        text: `Feed: live · web search (FRED unavailable) · GDP ${prints.gdp_saar}% · Core CPI ${prints.core_cpi_yoy}% · Policy ${prints.policy_rate}% · HY OAS ${prints.hy_oas} bp`,
       })
     } catch (err) {
       const reading = drawReading(engine.rng, current)
       setWorld((w) => advanceWorld(engine.rng, w, reading))
+      setLiveTape(null)
       setStatus({
         kind: 'error',
         text: `Live fetch failed (${err.message}) — fell back to simulation`,
@@ -273,7 +325,8 @@ export default function App() {
           </div>
           <Gears current={current} />
         </div>
-        <Releases current={current} />
+        <Releases current={current} tape={liveTape} />
+        <Provenance store={pit} />
       </section>
 
       <ColumnDivider />

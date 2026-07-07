@@ -48,14 +48,27 @@ sleeve weights, and generates one pass of decision-feed entries.
     (regime fit, cycle-posture fit, carry, risk-adjusted premium, credit
     divergence) → the ranked best-ideas docket (top 8); nominates only, never
     sizes
+  - `pit.js` — append-only point-in-time register: every live input stored
+    with its observation date and the knowable-at timestamp; `pitLatest` reads
+    only what was knowable at T (lookahead-proof); serialized to localStorage
+    by App.jsx
   - `rules.js` — six IF/THEN Pure Alpha principles
   - `montecarlo.js` — equal-weight portfolio moments (pairwise ρ = 0.25),
     400-path GBM fan (fixed seed → identical elections reproduce identical
     fans), analytic lognormal ledger rows
-- `src/live/fetchLive.js` — optional browser call to the Anthropic Messages API
-  with the web-search tool (GDP, CPI, policy rate, HY OAS); defensive JSON
-  parsing; converts prints to surprise σ and anchors the cycle via
-  `cycleFromSpread`. Callers must catch and fall back to simulation.
+- `src/live/fred.js` — primary live path: one Messages API call with the
+  web_fetch server tool retrieves an exact `fredgraph.csv` (GDPNow, CPI,
+  Cleveland Fed 1y expected inflation, DGS1, DFF, HY OAS — FRED quotes OAS in
+  percent, converted ×100 to bp); the raw CSV is parsed deterministically
+  client-side, never paraphrased by the model. Surprises read actual vs
+  market: CPI YoY vs EXPINF1YR, effective funds vs the 1y-Treasury-implied
+  path; growth vs the documented consensus constant. Emits point-in-time
+  records for `pit.js` and a real-print tape for Releases.
+- `src/live/fetchLive.js` — secondary live path: browser call to the Anthropic
+  Messages API with the web-search tool (GDP, CPI, policy rate, HY OAS);
+  defensive JSON parsing; converts prints to surprise σ and anchors the cycle
+  via `cycleFromSpread`. The chain is FRED → web search → simulation, with the
+  active source named in the status line.
 - `src/live/convene.js` — optional live-firm call: one Messages API request
   returns the IC debate votes and a Marks-voice memo as JSON; defensively
   parsed; callers fall back to the simulated firm.
