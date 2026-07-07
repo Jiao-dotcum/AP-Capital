@@ -83,6 +83,14 @@ sleeve weights, and generates one pass of decision-feed entries.
     generator; reports per-principle hit rates, regime hit rates, dial
     posture hit rates, turnover with/without the deadband, and book
     CAGR/vol/max-drawdown; the quarterly Memo quotes these base rates
+  - `oms.js` — the paper-trading OMS (Section XI, the Execution Desk): own
+    notional capital, listed proxies, deterministic simulated fills (4bp
+    slippage). Targets come from the risk-parity weights, clipped to the
+    single-name/class caps; `preTrade` compliance vetoes buys that breach the
+    caps or the gross ceiling and halts all new risk while the ruin ceiling is
+    breached (sells always clear). Positions/P&L/NAV ledger reconciled on each
+    rebalance; the blotter is the audit trail, persisted to localStorage. No
+    real broker keys — the Charter forbids real-money/outside-money automation
   - `montecarlo.js` — equal-weight portfolio moments (pairwise ρ = 0.25
     fallback), 400-path GBM fan (fixed seed → identical elections reproduce
     identical fans); accepts override moments so the fan can be driven by the

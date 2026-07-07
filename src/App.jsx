@@ -21,6 +21,16 @@ import { scanCatalysts } from './engine/sourcing.js'
 import { buildFeed, memoFrom, quarterLabel } from './engine/firm.js'
 import { runBacktest } from './engine/backtest.js'
 import { buildRiskReport } from './engine/risk.js'
+import {
+  initBook,
+  markStep,
+  targetPositions,
+  planOrders,
+  execute,
+  reconcile,
+  serializeBook,
+  deserializeBook,
+} from './engine/oms.js'
 import { fetchLiveMacro } from './live/fetchLive.js'
 import { fetchFredMacro } from './live/fred.js'
 import { conveneFirm } from './live/convene.js'
@@ -50,9 +60,11 @@ import Ledger from './components/Ledger.jsx'
 import Firm from './components/Firm.jsx'
 import Safeguards from './components/Safeguards.jsx'
 import Backtest from './components/Backtest.jsx'
+import Execution from './components/Execution.jsx'
 
 const SEED = 20260705
 const PIT_KEY = 'apcap-pit-v1'
+const BOOK_KEY = 'apcap-book-v1'
 const HIST_LENGTH = 260 // five years of weekly cycle states in the rolling window
 const TRAIL_LENGTH = 6
 const FEED_LENGTH = 32
@@ -135,6 +147,14 @@ export default function App() {
   const [edgar, setEdgar] = useState(() => staticBenchmarks())
   const [edgarFetching, setEdgarFetching] = useState(false)
   const [edgarStatus, setEdgarStatus] = useState(null)
+  // The paper-trading book persists across sessions as the audit trail.
+  const [book, setBook] = useState(() => {
+    try {
+      return deserializeBook(window.localStorage.getItem(BOOK_KEY))
+    } catch {
+      return initBook()
+    }
+  })
 
   useEffect(() => {
     try {
@@ -305,6 +325,28 @@ export default function App() {
       setConvening(false)
     }
   }
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(BOOK_KEY, serializeBook(book))
+    } catch {
+      /* storage unavailable — the paper book lives in memory only */
+    }
+  }, [book])
+
+  // Rebalance the paper book to the risk-parity target: mark to the current
+  // reading, then plan orders and run each through pre-trade compliance.
+  const rebalance = () => {
+    if (!riskReport) return
+    const weights = { ...riskReport.rp.weights }
+    setBook((b) => {
+      const marked = reconcile(b, markStep(current), `R${world.releaseN}`)
+      const targets = targetPositions(marked, weights)
+      const { book: next } = execute(marked, planOrders(marked, targets), { ruinBreached: breached })
+      return next
+    })
+  }
+  const resetBook = () => setBook(initBook())
 
   // Live credit fundamentals from SEC EDGAR XBRL; falls back to the offline
   // structural estimates on any failure, per issuer.
@@ -507,6 +549,23 @@ export default function App() {
       <section className="section">
         <SectionHead
           numeral="XI"
+          title="The Execution Desk"
+          note="The book, actually traded — on paper. Own capital, listed proxies, simulated fills; pre-trade compliance vetoes an order exactly as the risk agent vetoes a trade. Nothing here is real-money or outside-money automation, and nothing here is investment advice."
+        />
+        <Execution
+          book={book}
+          onRebalance={rebalance}
+          onReset={resetBook}
+          canTrade={!!riskReport}
+          ruinBreached={breached}
+        />
+      </section>
+
+      <ColumnDivider />
+
+      <section className="section">
+        <SectionHead
+          numeral="XII"
           title="The Firm"
           note="Every employee from intern to Co-CEO is an agent with a role, tools, and an artifact. Decisions flow up; nothing trades without passing each layer."
         />
@@ -526,7 +585,7 @@ export default function App() {
 
       <section className="section">
         <SectionHead
-          numeral="XII"
+          numeral="XIII"
           title="Safeguards"
           note="The machine assumes it will sometimes be wrong. The question is only how much that costs."
         />
