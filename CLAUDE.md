@@ -88,7 +88,12 @@ sleeve weights, and generates one pass of decision-feed entries.
     frozen at T and graded strictly at T+1 against a model-consistent return
     generator; reports per-principle hit rates, regime hit rates, dial
     posture hit rates, turnover with/without the deadband, and book
-    CAGR/vol/max-drawdown; the quarterly Memo quotes these base rates
+    CAGR/vol/max-drawdown; the quarterly Memo quotes these base rates. Also
+    exposes the monthly return series and `windowStats(series, years)` — the
+    lookback slider in Section XIII compounds the trailing N years into a
+    time-weighted annualized (CAGR) result, growth of $10k, vol, max-drawdown,
+    and Sharpe (money-weighted XIRR is deferred until real investor cash flows
+    exist)
   - `oms.js` — the paper-trading OMS (Section XI, the Execution Desk): own
     notional capital, listed proxies, deterministic simulated fills (4bp
     slippage). Targets come from the risk-parity weights, clipped to the

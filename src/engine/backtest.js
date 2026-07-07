@@ -81,6 +81,7 @@ export function runBacktest(seed = BACKTEST_SEED, months = BACKTEST_MONTHS) {
   let maxDD = 0
   const fixedW = weightsFor(50)
   const bookRets = []
+  const fixedRets = []
 
   // Pending decisions from T, graded when T+1 realizes.
   let pending = null
@@ -114,11 +115,13 @@ export function runBacktest(seed = BACKTEST_SEED, months = BACKTEST_MONTHS) {
         ? fired.reduce((s, id) => s + PRINCIPLE_PAYOFF[id](rets, pending.top), 0) / fired.length
         : 0
       const rManaged = bookReturn(pending.weights, rets, alpha)
+      const rFixed = bookReturn(fixedW, rets, alpha)
       navManaged *= 1 + rManaged / 100
-      navFixed *= 1 + bookReturn(fixedW, rets, alpha) / 100
+      navFixed *= 1 + rFixed / 100
       peakManaged = Math.max(peakManaged, navManaged)
       maxDD = Math.max(maxDD, 1 - navManaged / peakManaged)
       bookRets.push(rManaged)
+      fixedRets.push(rFixed)
     }
 
     // Decide at T with only what is knowable at T.
@@ -180,5 +183,44 @@ export function runBacktest(seed = BACKTEST_SEED, months = BACKTEST_MONTHS) {
       vol: +(volM * Math.sqrt(12)).toFixed(2),
       maxDD: +(maxDD * 100).toFixed(1),
     },
+    // The monthly return series (newest last), for the lookback slider.
+    series: { managed: bookRets, fixed: fixedRets },
+  }
+}
+
+// ————— Lookback-window statistics (the slider) —————
+// Compound the trailing `years` of the monthly series into a time-weighted
+// (annualized HPR) result: this is the strategy return, unaffected by the
+// timing of any contributions — the correct measure for a systematically
+// rebalanced book with no irregular cash flows. Money-weighted return (XIRR)
+// is a separate figure that only becomes meaningful once real investor
+// contributions and withdrawals exist; it is not computed here.
+export function windowStats(series, years) {
+  const monthly = series.slice(-Math.round(years * 12))
+  const n = monthly.length
+  if (!n) return null
+  let nav = 1
+  let peak = 1
+  let maxDD = 0
+  const navPath = [1]
+  for (const r of monthly) {
+    nav *= 1 + r / 100
+    peak = Math.max(peak, nav)
+    maxDD = Math.max(maxDD, 1 - nav / peak)
+    navPath.push(nav)
+  }
+  const mean = monthly.reduce((s, r) => s + r, 0) / n
+  const vol = Math.sqrt(monthly.reduce((s, r) => s + (r - mean) ** 2, 0) / n) * Math.sqrt(12)
+  const cumulative = nav - 1
+  const cagr = nav ** (12 / n) - 1
+  return {
+    months: n,
+    cumulative: +(cumulative * 100).toFixed(1),
+    cagr: +(cagr * 100).toFixed(2),
+    vol: +vol.toFixed(2),
+    maxDD: +(maxDD * 100).toFixed(1),
+    sharpe: vol > 0 ? +(((cagr * 100 - 3.8) / vol)).toFixed(2) : 0,
+    growthOf: +(10000 * nav).toFixed(0), // $10,000 invested at the start of the window
+    navPath,
   }
 }

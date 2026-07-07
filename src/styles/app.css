@@ -995,3 +995,43 @@ td.num, th.r { font-variant-numeric: tabular-nums; }
   color: var(--bronze);
   font-style: italic;
 }
+
+/* ————— Backtest lookback slider + window stats ————— */
+.slider {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0 auto var(--space-2);
+  max-width: 34rem;
+}
+.slider input[type='range'] {
+  flex: 1;
+  min-height: 44px;
+  accent-color: var(--wedgwood);
+  cursor: pointer;
+  background: transparent;
+}
+.slider__value {
+  min-width: 3.5rem;
+  text-align: right;
+  color: var(--ink);
+  font-size: var(--fs-lede);
+}
+.wstat-row {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+.wstat {
+  text-align: center;
+  padding: var(--space-1) 0;
+  border-top: 1px solid var(--line);
+}
+.wstat__figure {
+  font-size: var(--fs-lede);
+  margin-top: 0.2rem;
+}
+@media (max-width: 640px) {
+  .wstat-row { grid-template-columns: repeat(3, 1fr); }
+}
