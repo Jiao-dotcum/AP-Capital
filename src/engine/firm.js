@@ -125,10 +125,23 @@ export function buildFeed(ctx) {
 const QUARTERS = ['Q3 2026', 'Q4 2026', 'Q1 2027', 'Q2 2027', 'Q3 2027', 'Q4 2027', 'Q1 2028', 'Q2 2028']
 export const quarterLabel = (releaseN) => QUARTERS[Math.min(QUARTERS.length - 1, Math.floor((releaseN - 1) / 3))]
 
-export function memoFrom({ releaseN, dial, posture, cycle, screen, weights, deploy }) {
+export function memoFrom({ releaseN, dial, posture, cycle, screen, weights, deploy, baseRates = null }) {
   const cheap = [...screen].sort((a, b) => b.divergence - a.divergence)[0]
   const rich = [...screen].sort((a, b) => a.divergence - b.divergence)[0]
   const no = Math.floor((releaseN - 1) / 3) + 1
+  // The Memo quotes the proving ground: claims are made against measured
+  // base rates, not against memory.
+  let rates = null
+  if (baseRates) {
+    const fired = [...baseRates.principles].filter((p) => p.hitRate !== null).sort((a, b) => b.fires - a.fires)
+    const [p1, p2] = fired
+    rates =
+      `The base rates: across a ${baseRates.years}-year walk-forward — rules frozen at T, graded at T+1 — ` +
+      `${p1.id} fired ${p1.fires} times and paid in ${p1.hitRate}% of the following months; ${p2.id} in ${p2.hitRate}% of ${p2.fires}. ` +
+      `Offense at the dial preceded spread tightening ${baseRates.dial.offense.hitRate ?? '—'}% of the time, defense preceded widening ${baseRates.dial.defense.hitRate ?? '—'}%, ` +
+      `and the deadband cut turnover from ${baseRates.turnover.unsettled}pp to ${baseRates.turnover.settled}pp per release. ` +
+      `A principle that cannot beat its base rate is rewritten, not defended.`
+  }
   return {
     number: no,
     quarter: quarterLabel(releaseN),
@@ -137,6 +150,7 @@ export function memoFrom({ releaseN, dial, posture, cycle, screen, weights, depl
       `Where we stand: the pendulum reads ${dial} of 100 — ${posture.word.toLowerCase()}. High yield pays ${cycle.hySpread} basis points over Treasuries, the distress ratio sits at ${cycle.distressRatio}%, and lenders are ${cycle.lenderEase > 60 ? 'competing to make loans, which is precisely when loans should not be made' : cycle.lenderEase > 30 ? 'growing selective' : 'rationing credit, which is precisely when it should be extended'}. We cannot predict where the cycle goes next; we can know where we are in it, and calibrate.`,
       `What the crowd believes, and where we differ: consensus is most wrong on ${cheap.name}, where the market demands ${cheap.marketSpread} bp against our ${cheap.modelSpread} bp of modeled risk — first-level thinking sees the headline, second-level thinking sees the recovery value under the price. Conversely the crowd adores ${rich.name}; we decline to pay for the admiration. Alpha is permitted only where we disagree with the consensus and can articulate why the consensus is wrong.`,
       `Posture: ${weights[0]}% risk-balanced beta, ${weights[2]}% performing credit earning carry, ${weights[3]}% opportunistic${deploy ? ' — powder is being deployed into forced selling' : ' held as intention rather than position'}, and ${weights[4]}% dry powder. ${dial < 35 ? 'If we avoid the losers, the winners will take care of themselves.' : dial < 65 ? 'Neither maximum defense nor maximum offense is being paid for today; humility is a position too.' : 'The bargains exist because everyone is selling; our job is merely to be solvent and present.'}`,
+      ...(rates ? [rates] : []),
       'You cannot predict. You can prepare. — The Memo is the system’s self-audit: every claim above is logged against realized outcomes, and systematic divergence triggers a principle rewrite.',
     ],
   }

@@ -56,6 +56,12 @@ sleeve weights, and generates one pass of decision-feed entries.
     only what was knowable at T (lookahead-proof); serialized to localStorage
     by App.jsx
   - `rules.js` — six IF/THEN Pure Alpha principles
+  - `backtest.js` — walk-forward proving ground: 22 years of monthly releases
+    (fixed seed, expanding percentile history, the same dial deadband), rules
+    frozen at T and graded strictly at T+1 against a model-consistent return
+    generator; reports per-principle hit rates, regime hit rates, dial
+    posture hit rates, turnover with/without the deadband, and book
+    CAGR/vol/max-drawdown; the quarterly Memo quotes these base rates
   - `montecarlo.js` — equal-weight portfolio moments (pairwise ρ = 0.25),
     400-path GBM fan (fixed seed → identical elections reproduce identical
     fans), analytic lognormal ledger rows

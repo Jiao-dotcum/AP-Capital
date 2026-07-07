@@ -18,6 +18,7 @@ import {
 import { screenPerforming } from './engine/credit.js'
 import { bestIdeas } from './engine/origination.js'
 import { buildFeed, memoFrom, quarterLabel } from './engine/firm.js'
+import { runBacktest } from './engine/backtest.js'
 import { fetchLiveMacro } from './live/fetchLive.js'
 import { fetchFredMacro } from './live/fred.js'
 import { conveneFirm } from './live/convene.js'
@@ -45,6 +46,7 @@ import MonteCarlo from './components/MonteCarlo.jsx'
 import Ledger from './components/Ledger.jsx'
 import Firm from './components/Firm.jsx'
 import Safeguards from './components/Safeguards.jsx'
+import Backtest from './components/Backtest.jsx'
 
 const SEED = 20260705
 const PIT_KEY = 'apcap-pit-v1'
@@ -149,6 +151,8 @@ export default function App() {
   const screen = useMemo(() => screenPerforming(world.cycle), [world.cycle])
   const triggers = useMemo(() => triggersFrom(world.cycle), [world.cycle])
   const deploy = deployAuthorized(triggers)
+  // The proving ground runs once — fixed seed, identical report every session.
+  const baseRates = useMemo(() => runBacktest(), [])
   const templateMemo = useMemo(
     () =>
       memoFrom({
@@ -159,8 +163,9 @@ export default function App() {
         screen,
         weights,
         deploy,
+        baseRates,
       }),
-    [world.releaseN, dial, world.cycle, screen, weights, deploy],
+    [world.releaseN, dial, world.cycle, screen, weights, deploy, baseRates],
   )
   const memoIsLive = liveMemo !== null && liveMemo.releaseN === world.releaseN
   const memo = memoIsLive
@@ -486,6 +491,7 @@ export default function App() {
         />
         <Plate plate={PLATES.socrates} />
         <Safeguards current={current} />
+        <Backtest report={baseRates} />
       </section>
 
       <Footer />
