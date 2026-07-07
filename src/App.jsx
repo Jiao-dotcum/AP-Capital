@@ -35,6 +35,7 @@ import { fetchLiveMacro } from './live/fetchLive.js'
 import { fetchFredMacro } from './live/fred.js'
 import { conveneFirm } from './live/convene.js'
 import { fetchEdgarFundamentals, staticBenchmarks } from './live/edgar.js'
+import { fetchBackendState, asOf } from './live/backend.js'
 import { emptyPit, pitAppend, serializePit, deserializePit } from './engine/pit.js'
 import { Plate, PLATES } from './components/art.jsx'
 import {
@@ -333,6 +334,28 @@ export default function App() {
       /* storage unavailable — the paper book lives in memory only */
     }
   }, [book])
+
+  // On load, read the canonical machine-state the scheduled backend ingest
+  // persisted — live by default, no key, no button. Falls back silently to the
+  // simulated feed if the backend isn't configured yet.
+  useEffect(() => {
+    let cancelled = false
+    fetchBackendState().then((s) => {
+      if (cancelled || !s?.reading) return
+      setWorld((w) => advanceWorld(engine.rng, w, s.reading, s.hyOasBp ?? null))
+      setLiveTape(s.tape ?? null)
+      setStatus({
+        kind: 'live',
+        text: `Feed: live · FRED (auto) · as of ${asOf(s.knownAt)}${
+          s.prints ? ` · CPI ${s.prints.cpi_yoy}% · HY OAS ${s.prints.hy_oas} bp` : ''
+        }`,
+      })
+    })
+    return () => {
+      cancelled = true
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   // Rebalance the paper book to the risk-parity target: mark to the current
   // reading, then plan orders and run each through pre-trade compliance.
