@@ -17,6 +17,7 @@ import {
 } from './engine/cycle.js'
 import { screenPerforming } from './engine/credit.js'
 import { bestIdeas } from './engine/origination.js'
+import { scanCatalysts } from './engine/sourcing.js'
 import { buildFeed, memoFrom, quarterLabel } from './engine/firm.js'
 import { runBacktest } from './engine/backtest.js'
 import { buildRiskReport } from './engine/risk.js'
@@ -196,6 +197,9 @@ export default function App() {
     () => bestIdeas({ g: current.g, i: current.i, dial, screen, deploy, cycle: world.cycle }),
     [current, dial, screen, deploy, world.cycle],
   )
+  // The sourcing engine's full scan — catalysts + forced-seller detector +
+  // the second-level gate — feeds the docket and drives the Sourcing panel.
+  const sourcing = useMemo(() => scanCatalysts(world.cycle), [world.cycle])
 
   const simulate = () => {
     const reading = drawReading(engine.rng, current)
@@ -451,7 +455,7 @@ export default function App() {
           title="The Origination Desk"
           note="Where the next dollar goes. Every signal the machine produces — regime, posture, carry, divergence — folded into one ranked docket of nominations. The desk proposes; the committee disposes."
         />
-        <Origination ideas={ideas} />
+        <Origination ideas={ideas} sourcing={sourcing} />
       </section>
 
       <ColumnDivider />

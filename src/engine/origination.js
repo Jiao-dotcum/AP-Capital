@@ -1,6 +1,7 @@
 import { clamp } from './prng.js'
 import { UNIVERSE, CASH_RATE } from './assets.js'
 import { secondLevelThesis, proxyVehicles } from './credit.js'
+import { sourcedIdeas } from './sourcing.js'
 
 // ————— The Origination Desk —————
 // Sourcing, mechanized: one composite conviction score per candidate, built
@@ -108,6 +109,10 @@ export function bestIdeas({ g, i, dial, screen, deploy, cycle }) {
       },
     )
   }
+
+  // Special-situation leads from the sourcing engine, already gated on a
+  // complete second-level thesis, compete in the same ranking.
+  for (const s of sourcedIdeas(cycle)) ideas.push(s)
 
   return ideas.sort((a, b) => b.conviction - a.conviction).slice(0, 8)
 }

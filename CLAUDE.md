@@ -63,8 +63,15 @@ sleeve weights, and generates one pass of decision-feed entries.
     → fat tails) with named crisis replays (2008, Mar-2020, 2022)
   - `origination.js` — the Origination Desk: composite conviction scores
     (regime fit, cycle-posture fit, carry, risk-adjusted premium, credit
-    divergence) → the ranked best-ideas docket (top 8); nominates only, never
-    sizes
+    divergence) → the ranked best-ideas docket (top 8); folds in the sourcing
+    engine's gate-passing leads; nominates only, never sizes
+  - `sourcing.js` — the sourcing engine: a catalyst scanner (fallen angels,
+    index deletions, spinoffs, post-bankruptcy relistings, insider clusters,
+    CEF discounts) firing off the cycle state; a forced-seller detector (flow
+    capitulation in σ, margin-pressure and stress proxies → an intensity
+    score); and a hard second-level gate — every lead needs a written
+    consensus view, why-consensus-is-wrong, and kill condition, or it is HELD.
+    Deterministic per cycle print
   - `pit.js` — append-only point-in-time register: every live input stored
     with its observation date and the knowable-at timestamp; `pitLatest` reads
     only what was knowable at T (lookahead-proof); serialized to localStorage
