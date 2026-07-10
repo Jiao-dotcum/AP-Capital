@@ -36,6 +36,7 @@ import { fetchFredMacro } from './live/fred.js'
 import { conveneFirm } from './live/convene.js'
 import { fetchEdgarFundamentals, staticBenchmarks } from './live/edgar.js'
 import { fetchBackendState, asOf } from './live/backend.js'
+import { sleeveReturns } from './engine/proxies.js'
 import { emptyPit, pitAppend, serializePit, deserializePit } from './engine/pit.js'
 import { Plate, PLATES } from './components/art.jsx'
 import {
@@ -148,6 +149,10 @@ export default function App() {
   const [edgar, setEdgar] = useState(() => staticBenchmarks())
   const [edgarFetching, setEdgarFetching] = useState(false)
   const [edgarStatus, setEdgarStatus] = useState(null)
+  // Latest real closes for the listed proxies, from the backend market-data
+  // feed. Null until the backend has fetched at least one tick — the book
+  // marks off the factor model until then.
+  const [livePrices, setLivePrices] = useState(null)
   // The paper-trading book persists across sessions as the audit trail.
   const [book, setBook] = useState(() => {
     try {
@@ -341,7 +346,9 @@ export default function App() {
   useEffect(() => {
     let cancelled = false
     fetchBackendState().then((s) => {
-      if (cancelled || !s?.reading) return
+      if (cancelled || !s) return
+      if (s.prices) setLivePrices(s.prices)
+      if (!s.reading) return
       setWorld((w) => advanceWorld(engine.rng, w, s.reading, s.hyOasBp ?? null))
       setLiveTape(s.tape ?? null)
       setStatus({
@@ -357,13 +364,18 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // Rebalance the paper book to the risk-parity target: mark to the current
-  // reading, then plan orders and run each through pre-trade compliance.
+  // Rebalance the paper book to the risk-parity target: mark to real closes
+  // when the backend has fetched them, falling back to the factor model for
+  // any sleeve without a live price (and entirely when the feed isn't
+  // configured) — then plan orders and run each through pre-trade compliance.
   const rebalance = () => {
     if (!riskReport) return
     const weights = { ...riskReport.rp.weights }
+    const real = sleeveReturns(livePrices)
+    const modeled = markStep(current)
+    const markReturns = real ? { ...modeled, ...real } : modeled
     setBook((b) => {
-      const marked = reconcile(b, markStep(current), `R${world.releaseN}`)
+      const marked = reconcile(b, markReturns, `R${world.releaseN}`)
       const targets = targetPositions(marked, weights)
       const { book: next } = execute(marked, planOrders(marked, targets), { ruinBreached: breached })
       return next
@@ -581,6 +593,7 @@ export default function App() {
           onReset={resetBook}
           canTrade={!!riskReport}
           ruinBreached={breached}
+          livePriceCount={livePrices ? Object.keys(sleeveReturns(livePrices) ?? {}).length : 0}
         />
       </section>
 

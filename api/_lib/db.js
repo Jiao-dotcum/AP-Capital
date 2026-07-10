@@ -52,6 +52,18 @@ const SCHEMA = `
     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
   );
   CREATE INDEX IF NOT EXISTS machine_state_recent_idx ON machine_state (created_at DESC);
+
+  CREATE TABLE IF NOT EXISTS market_prices (
+    id          BIGSERIAL PRIMARY KEY,
+    ticker      TEXT NOT NULL,
+    close       DOUBLE PRECISION NOT NULL,
+    prev_close  DOUBLE PRECISION NOT NULL,
+    change_pct  DOUBLE PRECISION NOT NULL,
+    as_of       TIMESTAMPTZ NOT NULL,
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+  );
+  CREATE UNIQUE INDEX IF NOT EXISTS market_prices_dedupe_idx ON market_prices (ticker, as_of);
+  CREATE INDEX IF NOT EXISTS market_prices_ticker_idx ON market_prices (ticker, created_at DESC);
 `
 
 export async function ensureSchema() {
@@ -99,4 +111,38 @@ export async function getLatestState() {
   if (!rows.length) return null
   const r = rows[0]
   return { knownAt: r.known_at, reading: r.reading, hyOasBp: r.hy_oas_bp, prints: r.prints, tape: r.tape }
+}
+
+// Append one row per ticker for the day's close (point-in-time — a later
+// correction lands as a new row with a new as_of, never an overwrite).
+export async function insertPrices(pricesByTicker) {
+  const p = pool()
+  if (!p || !pricesByTicker) return 0
+  let inserted = 0
+  for (const [ticker, px] of Object.entries(pricesByTicker)) {
+    const res = await p.query(
+      `INSERT INTO market_prices (ticker, close, prev_close, change_pct, as_of)
+       VALUES ($1,$2,$3,$4,$5)
+       ON CONFLICT (ticker, as_of) DO NOTHING`,
+      [ticker, px.close, px.prevClose, px.change, px.asof],
+    )
+    inserted += res.rowCount
+  }
+  return inserted
+}
+
+// The latest persisted row per ticker, shaped like barsToPrices() output so
+// callers (sleeveReturns, the dashboard) don't care whether a price came from
+// a live fetch or the database.
+export async function getLatestPrices() {
+  const p = pool()
+  if (!p) return null
+  const { rows } = await p.query(
+    `SELECT DISTINCT ON (ticker) ticker, close, prev_close, change_pct, as_of
+       FROM market_prices ORDER BY ticker, as_of DESC`,
+  )
+  if (!rows.length) return null
+  return Object.fromEntries(
+    rows.map((r) => [r.ticker, { close: r.close, prevClose: r.prev_close, change: r.change_pct, asof: r.as_of }]),
+  )
 }

@@ -7,7 +7,7 @@ const signed = (n) => (n >= 0 ? '+' : '−') + '$' + Math.abs(Math.round(n)).toL
 // proxies, simulated fills — the Charter forbids real-money and outside-money
 // automation. Pre-trade compliance vetoes an order exactly as the Layer-4 risk
 // agent vetoes a trade; the blotter is the audit trail, persisted in-browser.
-export default function Execution({ book, onRebalance, onReset, canTrade, ruinBreached, pnlSincePrint }) {
+export default function Execution({ book, onRebalance, onReset, canTrade, ruinBreached, livePriceCount = 0 }) {
   const nav = bookNav(book)
   const positions = positionsLedger(book)
   const gross = positions.reduce((s, p) => s + Math.abs(p.mv), 0)
@@ -29,6 +29,15 @@ export default function Execution({ book, onRebalance, onReset, canTrade, ruinBr
             </button>
           </div>
         </div>
+        <p className="footnote" style={{ marginTop: '0.5rem' }}>
+          {livePriceCount > 0 ? (
+            <span className="lbl lbl--laurel">
+              Marks: live closes for {livePriceCount} of 17 proxies (backend feed); the rest factor-modeled.
+            </span>
+          ) : (
+            <span className="lbl">Marks: factor-modeled — no live price feed configured yet.</span>
+          )}
+        </p>
 
         <div className="grid-hero" style={{ marginTop: 'var(--space-2)' }}>
           <div>

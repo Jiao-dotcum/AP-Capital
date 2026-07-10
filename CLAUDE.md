@@ -107,6 +107,10 @@ sleeve weights, and generates one pass of decision-feed entries.
     identical fans); accepts override moments so the fan can be driven by the
     risk-parity book on the Ledoit–Wolf covariance from `risk.js`; analytic
     lognormal ledger rows
+  - `proxies.js` — the sleeve → listed-proxy ticker map (`usEq → SPY`, `ust10
+    → IEF`, …) and `sleeveReturns(pricesByTicker)`, which turns a ticker-keyed
+    market-data price map into the sleeve-keyed % returns `oms.reconcile()`
+    consumes — the seam between real closes and the paper book's marks
 - `src/live/fred.js` — primary live path: one Messages API call with the
   web_fetch server tool retrieves an exact `fredgraph.csv` (GDPNow, CPI,
   Cleveland Fed 1y expected inflation, DGS1, DFF, HY OAS — FRED quotes OAS in
@@ -129,6 +133,31 @@ sleeve weights, and generates one pass of decision-feed entries.
 - `src/live/convene.js` — optional live-firm call: one Messages API request
   returns the IC debate votes and a Marks-voice memo as JSON; defensively
   parsed; callers fall back to the simulated firm.
+- `src/live/backend.js` — reads the canonical state the backend has persisted
+  (`fetchBackendState()`); returns `null` on any failure or before the backend
+  is configured, so `App.jsx`'s mount effect falls back to the existing
+  simulated/manual-live paths automatically. No key, no button.
+- `api/` — the backend (Vercel serverless functions + Vercel Cron; see
+  `docs/BACKEND.md` for the full architecture and go-live steps). Everything
+  here degrades to a no-op until its env vars are set, so the frontend behaves
+  identically with or without a backend deployed.
+  - `ingest.js` — the daily cron target (`vercel.json`). Pulls FRED (keyless
+    `fredgraph.csv`, reusing `src/live/fred.js`'s parser server-side — no CORS
+    issue, no API key, no LLM) and, independently, Alpaca market data for the
+    17 listed proxies (`_lib/marketdata.js`, IEX feed, guarded on
+    `ALPACA_KEY_ID`/`ALPACA_SECRET_KEY`). One source failing doesn't block the
+    other; both persist point-in-time.
+  - `state.js` — the read endpoint `src/live/backend.js` calls; returns
+    `{ configured: false }` before `DATABASE_URL` is set.
+  - `_lib/db.js` — Postgres (`pg`) via `DATABASE_URL` (Neon/Supabase/Vercel
+    Postgres). Append-only `observations`, `machine_state`, `market_prices`
+    tables, created on first run; every exported function no-ops without
+    `DATABASE_URL`.
+  - `_lib/ingest.js` — pure `fredCsvToState(csv, knownAt)` transform (unit
+    -tested) + a thin network wrapper.
+  - `_lib/marketdata.js` — pure `barsToPrices(json)` transform (unit-tested) +
+    a thin network wrapper; same vendor (Alpaca) will later provide paper/live
+    execution, so market data and the broker consolidate behind one account.
 - `src/components/art.jsx` — the plate gallery: public-domain paintings
   hotlinked from Wikimedia Commons (candidate-URL fallback per plate; a plate
   that cannot load withdraws itself so the layout never breaks). The Cole
