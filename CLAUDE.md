@@ -168,7 +168,12 @@ sleeve weights, and generates one pass of decision-feed entries.
   that cannot load withdraws itself so the layout never breaks). The Cole
   plate in Section II swaps by dial posture.
 - `src/components/` — one component per dashboard section plus `chrome.jsx`
-  (masthead, meander, section heads, dividers, hardstop banner, footer)
+  (masthead, meander, section heads, dividers, hardstop banner, footer) and
+  `Tearsheet.jsx` — the printable one-page investor summary (posture, 10-year
+  walk-forward record, graded paper holdings, memo excerpt). Hidden on screen;
+  the "Print Tearsheet" button stamps `print-tearsheet` on `<body>` so
+  `@media print` shows only it. Carries the simulated/paper disclaimer twice
+  (banner + footer) — never weaken that language
 - `src/styles/tokens.css` — the neoclassical design tokens (palette, type
   scale). **All colors and fonts live here**; components reference only CSS
   variables. `app.css` holds the structural styles.

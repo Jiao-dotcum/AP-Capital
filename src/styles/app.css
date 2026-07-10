@@ -1046,3 +1046,45 @@ td.num, th.r { font-variant-numeric: tabular-nums; }
 @media (max-width: 640px) {
   .wstat-row { grid-template-columns: repeat(3, 1fr); }
 }
+
+/* ————— The tearsheet: hidden on screen, the only thing that prints ————— */
+.tearsheet { display: none; }
+
+@media print {
+  body.print-tearsheet .page > *:not(.tearsheet) { display: none !important; }
+  body.print-tearsheet { background: #fff !important; background-image: none !important; }
+  body.print-tearsheet .tearsheet {
+    display: block;
+    font-size: 11pt;
+    color: #1c1b18;
+  }
+}
+
+.ts-banner {
+  border: 2px solid var(--terracotta);
+  color: var(--terracotta);
+  font-family: var(--font-mono);
+  font-size: 9pt;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  text-align: center;
+  padding: 6pt 8pt;
+  margin-bottom: 12pt;
+}
+.ts-head { display: flex; justify-content: space-between; align-items: baseline; border-bottom: 2px solid var(--ink); padding-bottom: 6pt; }
+.ts-title { font-family: var(--font-display); font-size: 20pt; letter-spacing: 0.18em; }
+.ts-sub { font-family: var(--font-mono); font-size: 8pt; letter-spacing: 0.12em; text-transform: uppercase; color: var(--bronze); margin-top: 2pt; }
+.ts-date { font-size: 10pt; color: var(--bronze); }
+.ts-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8pt; margin: 10pt 0; }
+.ts-cell { border: 1px solid var(--line); border-top: 2px solid var(--wedgwood); padding: 6pt 8pt; }
+.ts-lbl { font-family: var(--font-mono); font-size: 7.5pt; letter-spacing: 0.1em; text-transform: uppercase; color: var(--bronze); margin-bottom: 3pt; }
+.ts-fig { font-family: var(--font-display); font-size: 13pt; }
+.ts-fig--small { font-size: 10.5pt; }
+.ts-note { font-size: 8.5pt; color: var(--bronze); font-style: italic; margin-top: 3pt; }
+.ts-section { margin-top: 10pt; }
+.ts-table { width: 100%; border-collapse: collapse; margin-top: 4pt; font-size: 9.5pt; }
+.ts-table th { font-family: var(--font-mono); font-size: 7.5pt; letter-spacing: 0.08em; text-transform: uppercase; color: var(--bronze); text-align: left; border-bottom: 1px solid var(--ink); padding: 3pt 6pt; }
+.ts-table td { border-bottom: 1px solid var(--line); padding: 3pt 6pt; }
+.ts-table .r { text-align: right; font-variant-numeric: tabular-nums; }
+.ts-memo { font-size: 9.5pt; line-height: 1.45; margin: 4pt 0 0; }
+.ts-foot { margin-top: 14pt; border-top: 1px solid var(--ink); padding-top: 6pt; font-size: 8pt; color: var(--bronze); line-height: 1.4; }

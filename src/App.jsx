@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { mulberry32 } from './engine/prng.js'
-import { drawReading, riskOfRuin, RUIN_CEILING } from './engine/machine.js'
+import { drawReading, regimeOf, riskOfRuin, RUIN_CEILING } from './engine/machine.js'
 import { UNIVERSE } from './engine/assets.js'
 import {
   CYCLE0,
@@ -62,6 +62,7 @@ import MonteCarlo from './components/MonteCarlo.jsx'
 import Ledger from './components/Ledger.jsx'
 import Firm from './components/Firm.jsx'
 import Safeguards from './components/Safeguards.jsx'
+import Tearsheet from './components/Tearsheet.jsx'
 import Backtest from './components/Backtest.jsx'
 import Execution from './components/Execution.jsx'
 
@@ -388,6 +389,19 @@ export default function App() {
   }
   const resetBook = () => setBook(initBook())
 
+  // Print only the tearsheet: stamp a class on <body> so the print stylesheet
+  // hides the dashboard, then restore after the dialog closes. A plain Ctrl+P
+  // still prints the full page.
+  const printTearsheet = () => {
+    document.body.classList.add('print-tearsheet')
+    const cleanup = () => {
+      document.body.classList.remove('print-tearsheet')
+      window.removeEventListener('afterprint', cleanup)
+    }
+    window.addEventListener('afterprint', cleanup)
+    window.print()
+  }
+
   // Live credit fundamentals from SEC EDGAR XBRL; falls back to the offline
   // structural estimates on any failure, per issuer.
   const fetchEdgar = async () => {
@@ -435,6 +449,9 @@ export default function App() {
         />
         <button type="button" className="btn btn--outline" onClick={fetchLive} disabled={fetching}>
           {fetching ? 'Fetching…' : 'Fetch Live Macro Data'}
+        </button>
+        <button type="button" className="btn btn--outline" onClick={printTearsheet}>
+          Print Tearsheet
         </button>
       </div>
       <p
@@ -637,6 +654,18 @@ export default function App() {
       </section>
 
       <Footer />
+
+      <Tearsheet
+        current={current}
+        dial={dial}
+        posture={postureOf(dial)}
+        regime={regimeOf(current)}
+        book={book}
+        grades={grades}
+        baseRates={baseRates}
+        memo={memo}
+        weights={weights}
+      />
     </div>
   )
 }
