@@ -20,6 +20,7 @@ import { bestIdeas } from './engine/origination.js'
 import { scanCatalysts } from './engine/sourcing.js'
 import { buildFeed, memoFrom, quarterLabel } from './engine/firm.js'
 import { runBacktest } from './engine/backtest.js'
+import { gradeBook } from './engine/grades.js'
 import { buildRiskReport } from './engine/risk.js'
 import {
   initBook,
@@ -226,6 +227,10 @@ export default function App() {
   // The sourcing engine's full scan — catalysts + forced-seller detector +
   // the second-level gate — feeds the docket and drives the Sourcing panel.
   const sourcing = useMemo(() => scanCatalysts(world.cycle), [world.cycle])
+
+  // The unified grade: one composite score + letter per holding, shared by
+  // the Register, the docket, and the book.
+  const grades = useMemo(() => gradeBook({ g: current.g, i: current.i, dial }), [current, dial])
 
   const simulate = () => {
     const reading = drawReading(engine.rng, current)
@@ -541,9 +546,9 @@ export default function App() {
         <SectionHead
           numeral="VII"
           title="The Register"
-          note="Fifteen liquid holdings scored on the current surprises and ranked into five tiers, best to worst. Tick to elect into the working portfolio."
+          note="Seventeen liquid holdings, each carrying its unified grade — the one composite the whole firm quotes — ranked into five tiers, best to worst. Tick to elect into the working portfolio."
         />
-        <Register current={current} elected={elected} onToggle={toggleAsset} />
+        <Register current={current} elected={elected} grades={grades} onToggle={toggleAsset} />
       </section>
 
       <ColumnDivider />
@@ -593,6 +598,7 @@ export default function App() {
           onReset={resetBook}
           canTrade={!!riskReport}
           ruinBreached={breached}
+          grades={grades}
           livePriceCount={livePrices ? Object.keys(sleeveReturns(livePrices) ?? {}).length : 0}
         />
       </section>

@@ -2,6 +2,7 @@ import { clamp } from './prng.js'
 import { UNIVERSE, CASH_RATE } from './assets.js'
 import { secondLevelThesis, proxyVehicles } from './credit.js'
 import { sourcedIdeas } from './sourcing.js'
+import { macroComponents, macroConviction, creditConviction } from './grades.js'
 
 // ————— The Origination Desk —————
 // Sourcing, mechanized: one composite conviction score per candidate, built
@@ -10,8 +11,6 @@ import { sourcedIdeas } from './sourcing.js'
 // and, for credit names, consensus divergence (second-level thinking).
 // The desk nominates; it never sizes. Every idea still passes the screens,
 // the risk layer, and the committee before a dollar moves.
-
-const WEIGHTS = { regime: 0.38, posture: 0.22, carry: 0.18, premium: 0.22 }
 
 function macroThesis(a, g, i, dial) {
   // The two dial-directed alternatives sleeves get a bespoke thesis.
@@ -41,17 +40,11 @@ function macroThesis(a, g, i, dial) {
 export function bestIdeas({ g, i, dial, screen, deploy, cycle }) {
   const ideas = []
 
-  // Macro sleeve candidates: the fifteen liquid holdings.
+  // Macro sleeve candidates: the whole liquid universe, scored by the shared
+  // grading engine so the docket's conviction IS the Register's grade.
   for (const a of UNIVERSE) {
-    const regime = clamp(50 + 18 * (a.bG * g + a.bI * i), 0, 100)
-    const carry = clamp(((a.carry + 0.5) / 5) * 100, 0, 100)
-    const premium = clamp(((a.er - CASH_RATE) / Math.max(a.vol, 1)) * 250, 0, 100)
-    // Posture: at low dial the desk wants quiet assets, at high dial it is
-    // paid to hold volatile ones. Distance between asset risk and appetite.
-    const posture = clamp(100 - 100 * Math.abs(a.vol / 22 - dial / 100), 0, 100)
-    const conviction = Math.round(
-      WEIGHTS.regime * regime + WEIGHTS.posture * posture + WEIGHTS.carry * carry + WEIGHTS.premium * premium,
-    )
+    const { regime, posture } = macroComponents(a, g, i, dial)
+    const conviction = macroConviction(a, g, i, dial)
     ideas.push({
       key: `mx-${a.id}`,
       name: a.name,
@@ -76,7 +69,7 @@ export function bestIdeas({ g, i, dial, screen, deploy, cycle }) {
       name: `${r.name} ${r.rating}`,
       type: 'Performing Credit',
       cls: 'Credit',
-      conviction: Math.round(clamp(52 + r.divergence / 3 + (r.mos - 0.55) * 60, 0, 100)),
+      conviction: creditConviction(r),
       thesis: secondLevelThesis(r),
       drivers: [
         { label: 'Divergence', value: `+${r.divergence} bp` },

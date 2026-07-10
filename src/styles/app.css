@@ -596,6 +596,17 @@ td.num, th.r { font-variant-numeric: tabular-nums; }
   font-variant-numeric: tabular-nums;
 }
 
+/* the unified letter grade, right-aligned before the raw score */
+.pick__grade {
+  margin-left: auto;
+  font-size: var(--fs-caption);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+.pick__grade + .pick__score {
+  margin-left: 0.4rem;
+}
+
 /* ————— Fan chart ————— */
 .fan-svg {
   display: block;

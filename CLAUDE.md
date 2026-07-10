@@ -82,6 +82,11 @@ sleeve weights, and generates one pass of decision-feed entries.
     with its observation date and the knowable-at timestamp; `pitLatest` reads
     only what was knowable at T (lookahead-proof); serialized to localStorage
     by App.jsx
+  - `grades.js` — the unified grade: one composite conviction (regime fit,
+    cycle-posture fit, carry, risk-adjusted premium; divergence + MoS for
+    credit) mapped to a letter (A+…F). The Origination docket, the Register,
+    and the Execution book all import THIS module, so a holding cannot grade
+    differently in different sections
   - `rules.js` — six IF/THEN Pure Alpha principles
   - `backtest.js` — walk-forward proving ground: 22 years of monthly releases
     (fixed seed, expanding percentile history, the same dial deadband), rules

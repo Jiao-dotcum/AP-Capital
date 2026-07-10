@@ -1,13 +1,15 @@
 import { positionsLedger, bookNav, LIMITS, START_NAV } from '../engine/oms.js'
+import { toneOf } from '../engine/grades.js'
 
 const money = (n) => (n < 0 ? '−$' : '$') + Math.abs(Math.round(n)).toLocaleString()
 const signed = (n) => (n >= 0 ? '+' : '−') + '$' + Math.abs(Math.round(n)).toLocaleString()
+const GRADE_COLOR = { pos: 'var(--laurel)', '': 'var(--ink)', muted: 'var(--bronze)', neg: 'var(--terracotta)' }
 
 // The Execution Desk: a paper-trading OMS. Own notional capital, listed
 // proxies, simulated fills — the Charter forbids real-money and outside-money
 // automation. Pre-trade compliance vetoes an order exactly as the Layer-4 risk
 // agent vetoes a trade; the blotter is the audit trail, persisted in-browser.
-export default function Execution({ book, onRebalance, onReset, canTrade, ruinBreached, livePriceCount = 0 }) {
+export default function Execution({ book, onRebalance, onReset, canTrade, ruinBreached, grades, livePriceCount = 0 }) {
   const nav = bookNav(book)
   const positions = positionsLedger(book)
   const gross = positions.reduce((s, p) => s + Math.abs(p.mv), 0)
@@ -79,6 +81,7 @@ export default function Execution({ book, onRebalance, onReset, canTrade, ruinBr
                 <thead>
                   <tr>
                     <th>Holding</th>
+                    <th>Grade</th>
                     <th className="r">Qty</th>
                     <th className="r">Avg</th>
                     <th className="r">Mark</th>
@@ -93,6 +96,13 @@ export default function Execution({ book, onRebalance, onReset, canTrade, ruinBr
                       <td>
                         {p.name}
                         <div className="proxy__bounds mono">{p.cls}</div>
+                      </td>
+                      <td
+                        className="mono"
+                        style={grades?.[p.id] ? { color: GRADE_COLOR[toneOf(grades[p.id].letter)], fontWeight: 600 } : undefined}
+                        title={grades?.[p.id] ? `Composite conviction ${grades[p.id].score} / 100` : undefined}
+                      >
+                        {grades?.[p.id]?.letter ?? '—'}
                       </td>
                       <td className="r num">{p.qty.toLocaleString()}</td>
                       <td className="r num">{p.avgCost.toFixed(1)}</td>
