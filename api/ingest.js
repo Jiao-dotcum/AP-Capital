@@ -2,6 +2,11 @@ import { fetchFredState } from './_lib/ingest.js'
 import { marketConfigured, fetchPrices } from './_lib/marketdata.js'
 import { configured, ensureSchema, insertObservations, saveState, insertPrices } from './_lib/db.js'
 
+// Allow up to 30s (Vercel clamps to whatever the plan permits) — the default
+// function timeout can otherwise cut off a slow upstream before its own
+// fetch-level timeout in _lib/ingest.js has a chance to report why.
+export const maxDuration = 30
+
 // ————— Scheduled ingestion (Vercel Cron → this endpoint) —————
 // Pulls FRED (macro, keyless CSV) and, if configured, Alpaca (real closes for
 // the listed proxies) — independently, so one source failing doesn't block the

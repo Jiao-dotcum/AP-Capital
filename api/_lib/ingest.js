@@ -16,9 +16,26 @@ export function fredCsvToState(csvText, knownAt) {
 
 export async function fetchFredState(now = new Date()) {
   const knownAt = now.toISOString()
-  const res = await fetch(fredCsvUrl(now), {
-    headers: { 'User-Agent': 'the-complete-machine/1.0 (fund diagnostic)' },
-  })
+  let res
+  try {
+    res = await fetch(fredCsvUrl(now), {
+      headers: {
+        'User-Agent': 'the-complete-machine/1.0 (fund diagnostic)',
+        accept: 'text/csv,text/plain,*/*',
+      },
+      // A generic 10s serverless timeout can produce an opaque "fetch failed";
+      // fail explicitly at 20s instead so the cause is legible.
+      signal: AbortSignal.timeout(20_000),
+    })
+  } catch (err) {
+    // Node/undici network failures wrap the real reason in `.cause` (DNS,
+    // TLS, connection-refused, or the abort above) and drop it from
+    // `.message` — surface it so the ingest response is diagnostic, not just
+    // "fetch failed".
+    const cause = err?.cause ? `: ${err.cause.code || err.cause.message || err.cause}` : ''
+    const kind = err?.name === 'TimeoutError' || err?.name === 'AbortError' ? 'FRED fetch timed out (20s)' : 'FRED fetch failed'
+    throw new Error(`${kind}${cause}`)
+  }
   if (!res.ok) throw new Error(`FRED HTTP ${res.status}`)
   const csv = await res.text()
   return fredCsvToState(csv, knownAt)
