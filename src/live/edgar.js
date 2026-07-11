@@ -37,6 +37,18 @@ export function staticFundamentals(issuer) {
 
 export const staticBenchmarks = () => BENCHMARKS.map(staticFundamentals)
 
+// Rows the backend ingest stored (cov/lev straight from the filings) folded
+// back onto the benchmark issuers through the SAME structural pipeline —
+// issuers without a stored row keep their offline estimate.
+export function mergeBackendFundamentals(stored) {
+  const byTicker = Object.fromEntries((stored ?? []).map((r) => [r.ticker, r]))
+  return BENCHMARKS.map((issuer) => {
+    const live = byTicker[issuer.ticker]
+    if (!live || !Number.isFinite(live.cov) || !Number.isFinite(live.lev)) return staticFundamentals(issuer)
+    return { ...staticFundamentals({ ...issuer, cov: live.cov, lev: live.lev }), source: 'EDGAR' }
+  })
+}
+
 const factsUrl = (cik) => `https://data.sec.gov/api/xbrl/companyfacts/CIK${cik}.json`
 
 export async function fetchEdgarFundamentals(apiKey, issuers = BENCHMARKS) {
@@ -119,9 +131,11 @@ export function findFactsJson(content) {
   return null
 }
 
-// The latest annual (FY, form 10-K) USD value for a us-gaap concept, trying
-// each candidate tag in order until one has data.
-export function latestAnnual(facts, concepts) {
+// The latest annual (FY, form 10-K) USD observation for a us-gaap concept,
+// trying each candidate tag in order until one has data. Returns the full
+// observation so callers can carry the fiscal period end (PIT discipline:
+// obsDate = what period the number is FOR, knownAt = when we learned it).
+export function latestAnnualObs(facts, concepts) {
   for (const concept of concepts) {
     const node = facts?.facts?.['us-gaap']?.[concept]
     if (!node) continue
@@ -130,16 +144,19 @@ export function latestAnnual(facts, concepts) {
     const annual = units
       .filter((u) => u.form === '10-K' && u.fp === 'FY' && Number.isFinite(u.val))
       .sort((a, b) => (a.end < b.end ? 1 : -1))
-    if (annual.length) return annual[0].val
+    if (annual.length) return annual[0]
   }
   return null
 }
+
+export const latestAnnual = (facts, concepts) => latestAnnualObs(facts, concepts)?.val ?? null
 
 // Coverage = operating income / interest expense; leverage = total debt /
 // EBITDA-proxy (operating income + D&A, falling back to operating income).
 // Then the same Merton → PD → expected-loss pipeline as the simulated desk.
 export function deriveFundamentals(issuer, facts) {
-  const opInc = latestAnnual(facts, ['OperatingIncomeLoss'])
+  const opIncObs = latestAnnualObs(facts, ['OperatingIncomeLoss'])
+  const opInc = opIncObs?.val ?? null
   const interest = latestAnnual(facts, ['InterestExpense', 'InterestExpenseDebt', 'InterestAndDebtExpense'])
   const debt = latestAnnual(facts, ['LongTermDebtNoncurrent', 'LongTermDebt', 'DebtLongtermAndShorttermCombinedAmount', 'Liabilities'])
   const da = latestAnnual(facts, ['DepreciationDepletionAndAmortization', 'DepreciationAmortizationAndAccretionNet', 'DepreciationAndAmortization']) || 0
@@ -160,6 +177,7 @@ export function deriveFundamentals(issuer, facts) {
     lev,
     ebitda,
     debt,
+    fiscalEnd: opIncObs.end ?? null, // the FY these facts are FOR (PIT obsDate)
     dd: +dd.toFixed(1),
     pd,
     el: +(pd * lgd * 100).toFixed(2),

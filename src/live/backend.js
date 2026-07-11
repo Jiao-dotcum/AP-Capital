@@ -20,6 +20,7 @@ export async function fetchBackendState() {
       knownAt: j.knownAt ?? null,
       prices: j.prices ?? null, // { TICKER: {close, prevClose, change, asof} }
       run: j.run ?? null, // latest canonical engine run: { seq, knownAt, decision, orders, nav, prevHash, hash }
+      fundamentals: j.fundamentals ?? null, // latest EDGAR rows per issuer (partial deriveFundamentals shape)
     }
   } catch {
     return null

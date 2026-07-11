@@ -1,6 +1,7 @@
 import dns from 'node:dns'
 import { fetchFredState, fredApiKeyConfigured } from './_lib/ingest.js'
 import { marketConfigured, fetchPrices } from './_lib/marketdata.js'
+import { secConfigured, fetchFundamentals } from './_lib/edgar.js'
 import { runEngineStep, unchangedSinceRun } from './_lib/engine.js'
 import {
   configured,
@@ -8,8 +9,10 @@ import {
   insertObservations,
   saveState,
   insertPrices,
+  insertFundamentals,
   insertEngineRun,
   getLatestRun,
+  getLatestDialOverride,
 } from './_lib/db.js'
 
 // A clean N-second timeout with no DNS/connection error first (as opposed to
@@ -44,6 +47,7 @@ export default async function handler(req, res) {
     configured: configured(),
     marketConfigured: marketConfigured(),
     fredApiKeyConfigured: fredApiKeyConfigured(),
+    secConfigured: secConfigured(),
   }
   if (configured()) await ensureSchema()
 
@@ -86,14 +90,36 @@ export default async function handler(req, res) {
     }
   }
 
+  // Credit fundamentals (SEC EDGAR) — keyless, but gated on SEC_USER_AGENT
+  // (SEC requires an identifying User-Agent). Independent of the feeds above.
+  if (secConfigured()) {
+    try {
+      const rows = await fetchFundamentals()
+      out.issuersParsed = rows.filter((r) => !r.error).length
+      if (configured()) out.fundamentalsStored = await insertFundamentals(rows)
+    } catch (err) {
+      out.ok = false
+      out.edgarError = String(err.message || err)
+    }
+  }
+
   // Phase 2: the canonical engine run — needs a fresh reading and the DB
   // (the chain is the whole point; without persistence there is nothing to
   // append to). Skipped silently when either is missing; a repeat curl with
-  // unchanged FRED data records nothing (the chain logs decisions, not curls).
+  // unchanged FRED data AND an unchanged dial override records nothing (the
+  // chain logs decisions, not curls). The override is the human-ratified dial
+  // from /api/override — The Charter's ratification, applied canonically.
   if (configured() && fredState?.reading) {
     try {
       const prevRun = await getLatestRun()
-      const inputs = { reading: fredState.reading, hyOasBp: fredState.hyOasBp ?? null, knownAt: fredState.knownAt, prices }
+      const override = await getLatestDialOverride()
+      const inputs = {
+        reading: fredState.reading,
+        hyOasBp: fredState.hyOasBp ?? null,
+        knownAt: fredState.knownAt,
+        prices,
+        dialOverride: override?.dial ?? null,
+      }
       if (unchangedSinceRun(prevRun, inputs)) {
         out.engineRun = { unchanged: true, seq: prevRun.seq, hash: prevRun.hash.slice(0, 12) }
       } else {

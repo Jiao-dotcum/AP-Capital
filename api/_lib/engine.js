@@ -20,8 +20,12 @@ import { sleeveReturns } from '../../src/engine/proxies.js'
 // this file under api/ rather than src/engine/.
 
 // Canonical JSON: keys sorted at every depth, so the same object always
-// hashes identically regardless of construction order.
+// hashes identically regardless of construction order. Dates serialize as
+// their ISO string (as JSON.stringify would) — a TIMESTAMPTZ read back from
+// Postgres arrives as a JS Date and must hash identically to the ISO string
+// it was stored from, or verifying a persisted chain would always fail.
 export function stableStringify(x) {
+  if (x instanceof Date) return JSON.stringify(x.toISOString())
   if (x === null || typeof x !== 'object') return JSON.stringify(x)
   if (Array.isArray(x)) return `[${x.map(stableStringify).join(',')}]`
   const keys = Object.keys(x).sort()
@@ -46,16 +50,23 @@ export const payloadOf = (run) => ({
 })
 
 // A repeat curl with identical FRED data must not append a duplicate run —
-// the chain records decisions, not invocations.
-export const unchangedSinceRun = (prevRun, { reading, hyOasBp = null }) =>
+// the chain records decisions, not invocations. A changed dial override IS a
+// decision (the human ratified something new), so it appends even when the
+// macro data hasn't moved.
+export const unchangedSinceRun = (prevRun, { reading, hyOasBp = null, dialOverride = null }) =>
   Boolean(prevRun) &&
   stableStringify(prevRun.reading) === stableStringify(reading) &&
-  (prevRun.hyOasBp ?? null) === (hyOasBp ?? null)
+  (prevRun.hyOasBp ?? null) === (hyOasBp ?? null) &&
+  (prevRun.decision?.dialOverride ?? null) === (dialOverride ?? null)
 
 // Advance the canonical world + book by one reading and seal the record.
 // Pure and deterministic: same prevRun + same inputs ⇒ byte-identical run.
-export function runEngineStep(prevRun, { reading, hyOasBp = null, knownAt, prices = null }) {
-  const world0 = prevRun?.world ?? seedWorld()
+// `dialOverride` is the human-ratified dial (The Charter's override, served
+// from the append-only dial_overrides table): non-null pins the dial, null
+// resumes automatic. It applies to the world BEFORE advancing so the sleeve
+// weights, feed entries, and the book's rebalance all see the ratified value.
+export function runEngineStep(prevRun, { reading, hyOasBp = null, knownAt, prices = null, dialOverride = null }) {
+  const world0 = { ...(prevRun?.world ?? seedWorld()), dialOverride: dialOverride ?? null }
   const book0 = prevRun?.book ?? initBook()
   // With a live spread advanceWorld makes no rng draw; the generator exists so
   // a missing spread still evolves the cycle deterministically per-step
@@ -85,6 +96,7 @@ export function runEngineStep(prevRun, { reading, hyOasBp = null, knownAt, price
   const decision = {
     regime: regimeOf(reading).key,
     dial,
+    dialOverride: dialOverride ?? null, // non-null = this dial was human-ratified
     posture: postureOf(dial).word,
     sleeveWeights: world.weights, // five-sleeve anchor weights, %
     rpWeights: Object.fromEntries(Object.entries(rp.weights).map(([k, v]) => [k, +v.toFixed(4)])), // fraction of NAV

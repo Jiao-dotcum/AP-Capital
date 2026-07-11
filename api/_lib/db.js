@@ -88,6 +88,35 @@ const SCHEMA = `
   -- chain; the error surfaces as engineError in that run's response.
   CREATE UNIQUE INDEX IF NOT EXISTS engine_runs_parent_idx
     ON engine_runs ((COALESCE(prev_hash, 'GENESIS')));
+
+  CREATE TABLE IF NOT EXISTS fundamentals (
+    id         BIGSERIAL PRIMARY KEY,
+    ticker     TEXT NOT NULL,
+    cik        TEXT NOT NULL,
+    cov        DOUBLE PRECISION NOT NULL,
+    lev        DOUBLE PRECISION NOT NULL,
+    ebitda     DOUBLE PRECISION,
+    debt       DOUBLE PRECISION,
+    fiscal_end DATE,
+    dd         DOUBLE PRECISION,
+    pd         DOUBLE PRECISION,
+    el_spread  INTEGER,
+    known_at   TIMESTAMPTZ NOT NULL,
+    source     TEXT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+  );
+  CREATE UNIQUE INDEX IF NOT EXISTS fundamentals_dedupe_idx
+    ON fundamentals (ticker, fiscal_end, cov, lev);
+  CREATE INDEX IF NOT EXISTS fundamentals_ticker_idx ON fundamentals (ticker, created_at DESC);
+
+  CREATE TABLE IF NOT EXISTS dial_overrides (
+    id         BIGSERIAL PRIMARY KEY,
+    dial       INTEGER,           -- NULL = resume automatic
+    note       TEXT,
+    known_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+  );
+  CREATE INDEX IF NOT EXISTS dial_overrides_recent_idx ON dial_overrides (created_at DESC);
 `
 
 export async function ensureSchema() {
@@ -207,6 +236,94 @@ export async function getLatestRunSummary() {
   if (!rows.length) return null
   const r = rows[0]
   return { seq: r.seq, knownAt: r.known_at, decision: r.decision, orders: r.orders, nav: r.nav, prevHash: r.prev_hash, hash: r.hash }
+}
+
+// Append issuer fundamentals point-in-time: a restated 10-K lands as a new
+// row (different values ⇒ new dedupe key), never an overwrite.
+export async function insertFundamentals(rows) {
+  const p = pool()
+  if (!p || !rows?.length) return 0
+  let inserted = 0
+  for (const r of rows) {
+    if (r.error) continue
+    const res = await p.query(
+      `INSERT INTO fundamentals (ticker, cik, cov, lev, ebitda, debt, fiscal_end, dd, pd, el_spread, known_at, source)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+       ON CONFLICT (ticker, fiscal_end, cov, lev) DO NOTHING`,
+      [r.ticker, r.cik, r.cov, r.lev, r.ebitda ?? null, r.debt ?? null, r.fiscalEnd ?? null, r.dd ?? null, r.pd ?? null, r.elSpread ?? null, r.knownAt, r.source],
+    )
+    inserted += res.rowCount
+  }
+  return inserted
+}
+
+// Latest stored fundamentals per ticker, shaped like deriveFundamentals()
+// output so the dashboard's EDGAR panel can render them directly.
+export async function getLatestFundamentals() {
+  const p = pool()
+  if (!p) return null
+  const { rows } = await p.query(
+    `SELECT DISTINCT ON (ticker) ticker, cik, cov, lev, ebitda, debt, fiscal_end, dd, pd, el_spread, known_at, source
+       FROM fundamentals ORDER BY ticker, created_at DESC`,
+  )
+  if (!rows.length) return null
+  return rows.map((r) => ({
+    ticker: r.ticker,
+    cik: r.cik,
+    cov: r.cov,
+    lev: r.lev,
+    ebitda: r.ebitda,
+    debt: r.debt,
+    fiscalEnd: r.fiscal_end,
+    dd: r.dd,
+    pd: r.pd,
+    elSpread: r.el_spread,
+    knownAt: r.known_at,
+    source: r.source,
+  }))
+}
+
+// ————— Human ratification of the dial (The Charter) —————
+// Append-only: every override (and every resume-auto, dial = NULL) is its own
+// row. The canonical engine run applies the latest one at each step.
+export async function insertDialOverride(dial, note) {
+  const p = pool()
+  if (!p) return false
+  await p.query(`INSERT INTO dial_overrides (dial, note) VALUES ($1, $2)`, [dial, note ?? null])
+  return true
+}
+
+export async function getLatestDialOverride() {
+  const p = pool()
+  if (!p) return null
+  const { rows } = await p.query(
+    `SELECT dial, note, created_at FROM dial_overrides ORDER BY created_at DESC LIMIT 1`,
+  )
+  if (!rows.length) return null
+  return { dial: rows[0].dial, note: rows[0].note, setAt: rows[0].created_at }
+}
+
+// Every run's hashed payload, oldest first — what verifyChain audits.
+export async function getChainRuns() {
+  const p = pool()
+  if (!p) return null
+  const { rows } = await p.query(
+    `SELECT seq, known_at, reading, hy_oas_bp, decision, orders, nav, prev_hash, hash
+       FROM engine_runs ORDER BY seq ASC, created_at ASC`,
+  )
+  // known_at comes back as a JS Date; the chain was hashed over the ISO
+  // string it was stored from — normalize so verifyChain recomputes true.
+  return rows.map((r) => ({
+    seq: r.seq,
+    knownAt: r.known_at instanceof Date ? r.known_at.toISOString() : r.known_at,
+    reading: r.reading,
+    hyOasBp: r.hy_oas_bp,
+    decision: r.decision,
+    orders: r.orders,
+    nav: r.nav,
+    prevHash: r.prev_hash,
+    hash: r.hash,
+  }))
 }
 
 // The latest persisted row per ticker, shaped like barsToPrices() output so

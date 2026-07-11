@@ -156,6 +156,47 @@ data. A healthy ingest response now also carries:
 and `/api/state` includes the latest run summary under `"run"` (decision,
 orders, NAV, hash seal) — absent until the first chained run lands.
 
+### Credit fundamentals (SEC EDGAR) — one env var, no key
+
+EDGAR's `data.sec.gov` API is free and keyless; what SEC requires is a
+descriptive `User-Agent` identifying the caller. Set one variable in Vercel:
+
+- `SEC_USER_AGENT` — e.g. `AP Capital your-email@example.com`
+
+Redeploy, re-seed, and look for `"secConfigured": true` and a non-zero
+`"issuersParsed"` / `"fundamentalsStored"`. The dashboard's EDGAR panel then
+loads live coverage/leverage from the scheduled feed on every visit — no
+Anthropic key, no button click (both still work as manual overrides).
+Unset, the feed is skipped and the panel keeps its offline estimates.
+
+### The dial override (human ratification, canonical)
+
+The Charter's human override now binds the canonical run, not just one
+browser tab. Owner-only (CRON_SECRET bearer):
+
+```
+# pin the dial at 62 (0–100)
+curl -X POST -H "Authorization: Bearer $CRON_SECRET" -H "content-type: application/json" \
+  -d '{"dial": 62, "note": "why"}' https://<your-app>/api/override
+
+# resume automatic
+curl -X POST -H "Authorization: Bearer $CRON_SECRET" -H "content-type: application/json" \
+  -d '{"dial": null}' https://<your-app>/api/override
+```
+
+Overrides are append-only rows; each canonical run records the override it
+obeyed inside its hash-sealed decision (`decision.dialOverride`), and a
+changed override counts as a new decision even when macro data hasn't moved.
+
+### Auditing and anchoring the chain
+
+`GET /api/chain` recomputes every hash link server-side and reports
+`{ length, head, verified }`; add `?full=1` for every sealed payload. The
+chain is tamper-evident on its own; to make it tamper-proof, **anchor the
+head**: snapshot the response somewhere the database writer can't touch —
+curl it weekly into a local file, email it to yourself, or commit it to git.
+A rewritten history cannot reproduce an anchored head hash.
+
 ## Notes / next steps
 
 - Every table is append-only; revisions land as new rows, so the macro

@@ -31,7 +31,7 @@ import {
 import { fetchLiveMacro } from './live/fetchLive.js'
 import { fetchFredMacro } from './live/fred.js'
 import { conveneFirm } from './live/convene.js'
-import { fetchEdgarFundamentals, staticBenchmarks } from './live/edgar.js'
+import { fetchEdgarFundamentals, staticBenchmarks, mergeBackendFundamentals } from './live/edgar.js'
 import { fetchBackendState, asOf } from './live/backend.js'
 import { sleeveReturns } from './engine/proxies.js'
 import { emptyPit, pitAppend, serializePit, deserializePit } from './engine/pit.js'
@@ -297,6 +297,13 @@ export default function App() {
     fetchBackendState().then((s) => {
       if (cancelled || !s) return
       if (s.prices) setLivePrices(s.prices)
+      if (s.fundamentals) {
+        setEdgar(mergeBackendFundamentals(s.fundamentals))
+        setEdgarStatus({
+          kind: 'live',
+          text: `EDGAR: ${s.fundamentals.length} issuers from the scheduled backend feed.`,
+        })
+      }
       if (!s.reading) return
       setWorld((w) => advanceWorld(engine.rng, w, s.reading, s.hyOasBp ?? null))
       setLiveTape(s.tape ?? null)

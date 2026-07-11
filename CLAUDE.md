@@ -130,7 +130,13 @@ function. Never advance the world any other way.
   world through the same `advanceWorld`, rebalances ONE canonical paper book,
   seals each record with `hash = sha256(prevHash | canonical-JSON(payload))`;
   `verifyChain` recomputes every link; a repeat ingest with unchanged FRED
-  data appends nothing — the chain records decisions, not curls).
+  data appends nothing — the chain records decisions, not curls),
+  `_lib/edgar.js` (SEC XBRL fundamentals server-side, gated on
+  `SEC_USER_AGENT` — SEC wants an identifying UA, not a key; reuses the
+  client's `deriveFundamentals` verbatim), `override.js` (the Charter's human
+  dial ratification, owner-only, append-only, recorded inside each run's
+  sealed decision), `chain.js` (recomputes the whole hash chain;
+  anchor its head externally to make tamper-evident into tamper-proof).
 - `src/components/` — one component per section + `chrome.jsx` +
   `Tearsheet.jsx` (print-only investor page; disclaimer language is
   load-bearing — never weaken it).
