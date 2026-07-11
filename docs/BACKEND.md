@@ -14,11 +14,18 @@ gracefully at every stage.
 ## What was added
 
 **Macro (live)**
-- `api/ingest.js` — Vercel Cron target. Fetches FRED's keyless `fredgraph.csv`
-  directly (no CORS server-side, no API key, no LLM), reuses the same parser as
-  `src/live/fred.js`, and appends the observations + one machine-state snapshot.
-- `api/_lib/ingest.js` — the pure `fredCsvToState(csv, knownAt)` transform
-  (unit-tested) plus a thin network wrapper.
+- `api/ingest.js` — Vercel Cron target. Fetches FRED macro data, reuses the
+  same parser as `src/live/fred.js`, and appends the observations + one
+  machine-state snapshot. Also runs an independent `networkProbe` (a fetch to
+  an unrelated host) so a FRED-specific failure is distinguishable from
+  deployment-wide network breakage.
+- `api/_lib/ingest.js` — two fetch strategies converging on one interpreter:
+  `fetchFredViaCsv` (the keyless `fredgraph.csv` chart-embed backend, zero
+  config) and `fetchFredViaApi` (the documented, key-authenticated
+  `api.stlouisfed.org` developer API, preferred when `FRED_API_KEY` is set —
+  see "If `/api/ingest` reports `fredError`" below). Both produce the same CSV
+  shape and feed the same pure `fredCsvToState(csv, knownAt)` transform
+  (unit-tested).
 
 **Market prices (this slice)**
 - `api/_lib/marketdata.js` — pulls daily closes for the 17 listed proxies from
@@ -51,6 +58,36 @@ gracefully at every stage.
 Database provisioned, `DATABASE_URL` and `CRON_SECRET` set in Vercel, deployed,
 seeded, and confirmed live per the earlier steps. If you haven't done this
 yet, do it first — the market-price feed reuses the same database.
+
+### If `/api/ingest` reports `fredError` (timeout or "fetch failed")
+
+`fredgraph.csv` (FRED's keyless chart-embed backend) has been observed timing
+out consistently from Vercel's serverless IPs — this survived both explicit
+error-cause surfacing and forcing IPv4-first DNS resolution, which rules out a
+local networking fault and points to FRED (or a WAF in front of it) silently
+dropping requests from datacenter IP ranges. The fix is to switch to FRED's
+actual documented, key-authenticated developer API
+(`api.stlouisfed.org/fred/series/observations`), which the ingest job now
+prefers automatically whenever a key is present:
+
+1. **Get a free API key** at
+   [fred.stlouisfed.org/docs/api/api_key.html](https://fred.stlouisfed.org/docs/api/api_key.html)
+   (instant, no approval wait).
+2. **Set one environment variable** in Vercel (Production): `FRED_API_KEY`.
+3. **Redeploy.**
+4. **Re-seed**, same endpoint as before:
+   ```
+   curl -H "Authorization: Bearer $CRON_SECRET" https://<your-app>/api/ingest
+   ```
+   Look for `"fredApiKeyConfigured": true` and no `fredError` key in the
+   response. The response also carries a `networkProbe` field (a fetch to an
+   unrelated, highly-reliable host) that tells apart "FRED specifically is
+   blocked" from "outbound networking is broken for this deployment
+   entirely" — if `networkProbe.ok` is false too, the problem isn't FRED.
+
+The keyless CSV scrape remains the zero-config fallback when `FRED_API_KEY` is
+unset — both paths converge on the same parser (`interpretFredCsv` in
+`src/live/fred.js`), so behavior is identical either way once data arrives.
 
 ### This slice: real proxy prices (Alpaca)
 

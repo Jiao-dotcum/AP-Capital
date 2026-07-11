@@ -1,5 +1,5 @@
 import dns from 'node:dns'
-import { fetchFredState } from './_lib/ingest.js'
+import { fetchFredState, fredApiKeyConfigured } from './_lib/ingest.js'
 import { marketConfigured, fetchPrices } from './_lib/marketdata.js'
 import { configured, ensureSchema, insertObservations, saveState, insertPrices } from './_lib/db.js'
 
@@ -30,8 +30,24 @@ export default async function handler(req, res) {
     return res.status(401).json({ error: 'unauthorized' })
   }
 
-  const out = { ok: true, configured: configured(), marketConfigured: marketConfigured() }
+  const out = {
+    ok: true,
+    configured: configured(),
+    marketConfigured: marketConfigured(),
+    fredApiKeyConfigured: fredApiKeyConfigured(),
+  }
   if (configured()) await ensureSchema()
+
+  // Independent of FRED/Alpaca/DB: a fast, unrelated, highly-reliable host
+  // tells apart "FRED specifically is unreachable/blocked" from "outbound
+  // networking is broken for this deployment entirely."
+  try {
+    const t0 = Date.now()
+    const probe = await fetch('https://api.github.com/zen', { signal: AbortSignal.timeout(8_000) })
+    out.networkProbe = { ok: probe.ok, ms: Date.now() - t0 }
+  } catch (err) {
+    out.networkProbe = { ok: false, error: String(err.message || err) }
+  }
 
   // Macro (FRED)
   try {

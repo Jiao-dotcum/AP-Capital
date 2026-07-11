@@ -18,7 +18,7 @@ export const FRED_SERIES = {
   BAMLH0A0HYM2: { label: 'ICE BofA US High Yield OAS', unit: '%' },
 }
 
-const LOOKBACK_DAYS = 430 // 13+ months of CPI for the YoY base, with margin
+export const LOOKBACK_DAYS = 430 // 13+ months of CPI for the YoY base, with margin
 
 export function fredCsvUrl(now = new Date()) {
   const cosd = new Date(now.getTime() - LOOKBACK_DAYS * 864e5).toISOString().slice(0, 10)
