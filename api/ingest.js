@@ -1,6 +1,16 @@
+import dns from 'node:dns'
 import { fetchFredState } from './_lib/ingest.js'
 import { marketConfigured, fetchPrices } from './_lib/marketdata.js'
 import { configured, ensureSchema, insertObservations, saveState, insertPrices } from './_lib/db.js'
+
+// A clean N-second timeout with no DNS/connection error first (as opposed to
+// a fast ENOTFOUND/ECONNREFUSED) is the signature of a broken IPv6 path in a
+// serverless container: the runtime tries to resolve/connect over IPv6
+// first, that route is dead, and the fetch hangs until the abort fires
+// instead of falling back to IPv4 quickly. Force IPv4-first resolution for
+// every outbound fetch this function makes (FRED, Alpaca) — set once at
+// module load so it applies for the life of the warm container.
+dns.setDefaultResultOrder('ipv4first')
 
 // Allow up to 30s (Vercel clamps to whatever the plan permits) — the default
 // function timeout can otherwise cut off a slow upstream before its own
