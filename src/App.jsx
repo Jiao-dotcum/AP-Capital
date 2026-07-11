@@ -5,7 +5,6 @@ import { UNIVERSE } from './engine/assets.js'
 import {
   proxyScores,
   dialFrom,
-  DIAL_DEADBAND,
   postureOf,
   weightsFor,
   triggersFrom,

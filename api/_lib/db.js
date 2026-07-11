@@ -82,6 +82,12 @@ const SCHEMA = `
   );
   CREATE UNIQUE INDEX IF NOT EXISTS engine_runs_hash_idx ON engine_runs (hash);
   CREATE INDEX IF NOT EXISTS engine_runs_seq_idx ON engine_runs (seq DESC);
+  -- Linearity: each link can be extended exactly once (COALESCE so the NULL
+  -- genesis parent is unique too). Two racing ingests both chaining off the
+  -- same predecessor -> the second INSERT errors instead of forking the
+  -- chain; the error surfaces as engineError in that run's response.
+  CREATE UNIQUE INDEX IF NOT EXISTS engine_runs_parent_idx
+    ON engine_runs ((COALESCE(prev_hash, 'GENESIS')));
 `
 
 export async function ensureSchema() {

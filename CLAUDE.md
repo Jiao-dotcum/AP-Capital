@@ -273,6 +273,19 @@ focus; respect `prefers-reduced-motion`. The Gothic-diaper page background is
 generated art — regenerate it with a script and screenshot it; don't hand-edit
 the data URI.
 
+## After every job (owner's standing instruction)
+
+When a piece of work is delivered, do three things in the handoff, every time:
+
+1. **Re-check the work adversarially** — not "did it build" but "what did I
+   miss": race conditions, boundary cases the tests dodge, invariants
+   honored in letter but not spirit. Fix what you find; report what you fixed.
+2. **Name what the owner hasn't considered** relative to the stated goal
+   (real capital, real investors, regulatory scrutiny) — governance gaps,
+   audit gaps, operational risks. Blunt beats polite.
+3. **Ask questions** — the decisions the work surfaced that are genuinely the
+   owner's to make, with a recommendation each. Never end a job silent.
+
 ## Project skills
 
 - `/verify` — the full verification pipeline (engine determinism + build +
