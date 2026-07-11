@@ -64,6 +64,24 @@ const SCHEMA = `
   );
   CREATE UNIQUE INDEX IF NOT EXISTS market_prices_dedupe_idx ON market_prices (ticker, as_of);
   CREATE INDEX IF NOT EXISTS market_prices_ticker_idx ON market_prices (ticker, created_at DESC);
+
+  CREATE TABLE IF NOT EXISTS engine_runs (
+    id         BIGSERIAL PRIMARY KEY,
+    seq        INTEGER NOT NULL,
+    known_at   TIMESTAMPTZ NOT NULL,
+    reading    JSONB NOT NULL,
+    hy_oas_bp  INTEGER,
+    decision   JSONB NOT NULL,
+    orders     JSONB NOT NULL,
+    nav        DOUBLE PRECISION NOT NULL,
+    world      JSONB NOT NULL,
+    book       JSONB NOT NULL,
+    prev_hash  TEXT,
+    hash       TEXT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+  );
+  CREATE UNIQUE INDEX IF NOT EXISTS engine_runs_hash_idx ON engine_runs (hash);
+  CREATE INDEX IF NOT EXISTS engine_runs_seq_idx ON engine_runs (seq DESC);
 `
 
 export async function ensureSchema() {
@@ -129,6 +147,60 @@ export async function insertPrices(pricesByTicker) {
     inserted += res.rowCount
   }
   return inserted
+}
+
+// ————— Phase 2: the hash-chained canonical run —————
+// Append-only like everything else. The unique hash index makes re-inserting
+// the same sealed record a no-op, so a retried ingest can't fork the chain.
+export async function insertEngineRun(run) {
+  const p = pool()
+  if (!p || !run) return false
+  const res = await p.query(
+    `INSERT INTO engine_runs (seq, known_at, reading, hy_oas_bp, decision, orders, nav, world, book, prev_hash, hash)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+     ON CONFLICT (hash) DO NOTHING`,
+    [run.seq, run.knownAt, run.reading, run.hyOasBp ?? null, run.decision, JSON.stringify(run.orders), run.nav, run.world, run.book, run.prevHash, run.hash],
+  )
+  return res.rowCount > 0
+}
+
+// The full latest run — the server's working state for chaining the next one.
+export async function getLatestRun() {
+  const p = pool()
+  if (!p) return null
+  const { rows } = await p.query(
+    `SELECT seq, known_at, reading, hy_oas_bp, decision, orders, nav, world, book, prev_hash, hash
+       FROM engine_runs ORDER BY seq DESC, created_at DESC LIMIT 1`,
+  )
+  if (!rows.length) return null
+  const r = rows[0]
+  return {
+    seq: r.seq,
+    knownAt: r.known_at,
+    reading: r.reading,
+    hyOasBp: r.hy_oas_bp,
+    decision: r.decision,
+    orders: r.orders,
+    nav: r.nav,
+    world: r.world,
+    book: r.book,
+    prevHash: r.prev_hash,
+    hash: r.hash,
+  }
+}
+
+// The dashboard's view of the latest run: decision + NAV + seal, without the
+// carried world/book blobs.
+export async function getLatestRunSummary() {
+  const p = pool()
+  if (!p) return null
+  const { rows } = await p.query(
+    `SELECT seq, known_at, decision, orders, nav, prev_hash, hash
+       FROM engine_runs ORDER BY seq DESC, created_at DESC LIMIT 1`,
+  )
+  if (!rows.length) return null
+  const r = rows[0]
+  return { seq: r.seq, knownAt: r.known_at, decision: r.decision, orders: r.orders, nav: r.nav, prevHash: r.prev_hash, hash: r.hash }
 }
 
 // The latest persisted row per ticker, shaped like barsToPrices() output so

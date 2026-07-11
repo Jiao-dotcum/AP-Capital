@@ -50,15 +50,21 @@ in the verify skill when you add or remove a section.
 
 ## Architecture
 
-State lives in `src/App.jsx`: a trail of `{g, i}` macro-surprise readings (σ
-units), a coupled credit-cycle object, the settled dial, the decision feed,
-the paper book, and the point-in-time register. **`advanceWorld()` is the
-single state transition** — the simulate path, the manual live path, and the
-backend auto-load path all go through it. Never advance the world any other way.
+Browser state lives in `src/App.jsx`: a trail of `{g, i}` macro-surprise
+readings (σ units), a coupled credit-cycle object, the settled dial, the
+decision feed, the paper book, and the point-in-time register.
+**`advanceWorld()` (in `src/engine/world.js`) is the single state
+transition** — the simulate path, the manual live path, the backend auto-load
+path, AND the server's canonical engine run all import and call this one
+function. Never advance the world any other way.
 
 - `src/engine/` — pure logic, no React, deterministic per reading:
   - `prng.js` — mulberry32, Box–Muller `normal`, `clamp`. All randomness
     everywhere flows from seeded mulberry32.
+  - `world.js` — `seedWorld()` + `advanceWorld(rng, world, reading,
+    liveSpread)`: THE per-release state transition (Invariant 2), plus the
+    shared constants (`SEED`, trail/feed lengths, `DEFAULT_ELECTED`). Shared
+    verbatim by `App.jsx` and `api/_lib/engine.js`.
   - `machine.js` — surprise draws, `PRICED_IN` consensus constants, release
     tape, regime quadrants, three gears, risk-of-ruin (ceiling 2.5%).
   - `cycle.js` — credit-cycle evolution coupled to macro stress; seven proxies
@@ -113,11 +119,18 @@ backend auto-load path all go through it. Never advance the world any other way.
   pipeline), `convene.js` (live IC debate + memo), `backend.js` (reads
   `/api/state`; `null` on any failure).
 - `api/` — Vercel serverless + cron (see `docs/BACKEND.md` for go-live):
-  `ingest.js` (daily cron: FRED keyless CSV + Alpaca IEX bars, **independent
-  try/catch per source**), `state.js` (read endpoint), `_lib/db.js` (Postgres
-  via `DATABASE_URL`, append-only tables, every function no-ops unconfigured),
-  `_lib/ingest.js` + `_lib/marketdata.js` (pure transforms + thin fetch
-  wrappers).
+  `ingest.js` (daily cron: FRED + Alpaca IEX bars, **independent try/catch
+  per source**, plus the canonical engine step), `state.js` (read endpoint,
+  includes the latest run summary), `_lib/db.js` (Postgres via
+  `DATABASE_URL`, append-only tables incl. `engine_runs`, every function
+  no-ops unconfigured), `_lib/ingest.js` + `_lib/marketdata.js` (pure
+  transforms + thin fetch wrappers; FRED prefers the key-authenticated
+  developer API when `FRED_API_KEY` is set, falls back to the keyless CSV),
+  `_lib/engine.js` (**Phase 2 — the canonical run**: advances ONE server-side
+  world through the same `advanceWorld`, rebalances ONE canonical paper book,
+  seals each record with `hash = sha256(prevHash | canonical-JSON(payload))`;
+  `verifyChain` recomputes every link; a repeat ingest with unchanged FRED
+  data appends nothing — the chain records decisions, not curls).
 - `src/components/` — one component per section + `chrome.jsx` +
   `Tearsheet.jsx` (print-only investor page; disclaimer language is
   load-bearing — never weaken it).
@@ -188,7 +201,14 @@ unless it follows the rule.
   order entirely, leaving the book with zero rates exposure. Real compliance
   resizes. → *Rule: caps clip targets at planning time
   (`targetPositions`); `preTrade` is the backstop for genuine breaches. A
-  routine rebalance must produce zero vetoes.*
+  routine rebalance must produce zero vetoes.* **It recurred** the moment a
+  rebalance followed marks moving off par: a target clipped to the *exact*
+  cap trips `preTrade` anyway, because order qty rounds up to 2dp and NAV
+  drifts below its planning value as earlier fills pay slippage (worst case
+  `SLIPPAGE_BP × grossCeiling` ≈ 6.4bp of NAV). → *Rule: planning clips
+  `CAP_HEADROOM` (10bp of NAV) under every cap, and the zero-veto check must
+  run on a book whose marks have moved (see `runEngineStep` in verify), not
+  only on a fresh all-par book — round numbers hide the boundary.*
 - **The collapsed risk parity.** True equal-risk-contribution iteration
   collapsed to a single season because hedge assets have negative marginal
   risk contribution. → *Rule: season sizing is standalone-vol equalization;

@@ -3,22 +3,19 @@ import { mulberry32 } from './engine/prng.js'
 import { drawReading, regimeOf, riskOfRuin, RUIN_CEILING } from './engine/machine.js'
 import { UNIVERSE } from './engine/assets.js'
 import {
-  CYCLE0,
-  evolveCycle,
-  cycleFromSpread,
   proxyScores,
   dialFrom,
-  settleDial,
   DIAL_DEADBAND,
   postureOf,
   weightsFor,
   triggersFrom,
   deployAuthorized,
 } from './engine/cycle.js'
+import { SEED, FEED_LENGTH, DEFAULT_ELECTED, seedWorld, advanceWorld } from './engine/world.js'
 import { screenPerforming } from './engine/credit.js'
 import { bestIdeas } from './engine/origination.js'
 import { scanCatalysts } from './engine/sourcing.js'
-import { buildFeed, memoFrom, quarterLabel } from './engine/firm.js'
+import { memoFrom, quarterLabel } from './engine/firm.js'
 import { runBacktest } from './engine/backtest.js'
 import { gradeBook } from './engine/grades.js'
 import { buildRiskReport } from './engine/risk.js'
@@ -66,70 +63,17 @@ import Tearsheet from './components/Tearsheet.jsx'
 import Backtest from './components/Backtest.jsx'
 import Execution from './components/Execution.jsx'
 
-const SEED = 20260705
 const PIT_KEY = 'apcap-pit-v1'
 const BOOK_KEY = 'apcap-book-v1'
-const HIST_LENGTH = 260 // five years of weekly cycle states in the rolling window
-const TRAIL_LENGTH = 6
-const FEED_LENGTH = 32
-const DEFAULT_ELECTED = ['usEq', 'ust10', 'tips', 'gold', 'gsci', 'cash']
-
-// Build the whole per-release state transition in one pure step so the
-// simulate and live-fetch paths share it.
-function advanceWorld(rng, world, reading, liveSpread = null) {
-  const cycle = liveSpread ? cycleFromSpread(liveSpread) : evolveCycle(rng, world.cycle, reading)
-  const cycleHist = [...world.cycleHist, cycle].slice(-HIST_LENGTH)
-  // Percentile composite settled through the deadband: the dial holds until
-  // the composite has genuinely moved.
-  const autoDial = settleDial(world.autoDial, dialFrom(proxyScores(cycle, cycleHist)))
-  const dial = world.dialOverride ?? autoDial
-  const weights = weightsFor(dial)
-  const screen = screenPerforming(cycle)
-  const triggers = triggersFrom(cycle)
-  const ruin = riskOfRuin(reading)
-  const n = world.releaseN + 1
-  const entries = buildFeed({
-    n,
-    reading,
-    cycle,
-    dial,
-    weights,
-    prevWeights: world.weights,
-    screen,
-    triggers,
-    deploy: deployAuthorized(triggers),
-    risk: { value: ruin, breached: ruin > RUIN_CEILING },
-  })
-  return {
-    ...world,
-    trail: [...world.trail, reading].slice(-TRAIL_LENGTH),
-    cycle,
-    cycleHist,
-    autoDial,
-    weights,
-    releaseN: n,
-    feed: [...entries, ...world.feed].slice(0, FEED_LENGTH),
-    vetoCount: world.vetoCount + entries.filter((e) => e.tone === 'veto').length,
-  }
-}
 
 export default function App() {
   // One seeded generator for the life of the session: reproducible releases.
+  // The state transition itself lives in src/engine/world.js — the single
+  // advanceWorld shared with the server's canonical run (Invariant 2).
   const [engine] = useState(() => {
     const rng = mulberry32(SEED)
     const first = drawReading(rng, null)
-    const seedWorld = {
-      trail: [],
-      cycle: CYCLE0,
-      cycleHist: [],
-      autoDial: dialFrom(proxyScores(CYCLE0)),
-      weights: weightsFor(dialFrom(proxyScores(CYCLE0))),
-      releaseN: 0,
-      feed: [],
-      vetoCount: 0,
-      dialOverride: null,
-    }
-    return { rng, world: advanceWorld(rng, seedWorld, first) }
+    return { rng, world: advanceWorld(rng, seedWorld(), first) }
   })
   const [world, setWorld] = useState(engine.world)
   const [elected, setElected] = useState(() => new Set(DEFAULT_ELECTED))

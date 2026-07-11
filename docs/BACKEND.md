@@ -126,11 +126,41 @@ The full response from a seeded, fully-configured `/api/ingest` looks like:
 }
 ```
 
+## Phase 2 — the canonical engine run (shipped, zero-config)
+
+Every scheduled ingest that lands a **fresh** FRED reading now also advances
+one canonical, server-side instance of the machine and appends the result to
+an `engine_runs` table as a **hash-chained record**:
+
+- The world advances through the *same* `advanceWorld()` the browser uses
+  (`src/engine/world.js`) — one state transition, every path.
+- One canonical paper book (the default six-sleeve election) is marked — real
+  closes where Alpaca has them, factor model elsewhere — then rebalanced to
+  the risk-parity target through the same planning caps and pre-trade
+  compliance as the dashboard's Execution Desk.
+- The record (reading, decision, this run's orders, NAV) is sealed with
+  `hash = sha256(prev_hash | canonical-JSON(payload))`. Tampering with any
+  stored decision breaks every hash after it; `verifyChain` in
+  `api/_lib/engine.js` recomputes the whole chain from the payloads alone.
+- A repeat curl with unchanged FRED data appends **nothing** (the response
+  says `"engineRun": {"unchanged": true, ...}`) — the chain records
+  decisions, not invocations.
+
+Nothing to configure: it runs whenever the DB is configured and FRED returns
+data. A healthy ingest response now also carries:
+
+```json
+"engineRun": { "seq": 1, "nav": 1002894.05, "dial": 31, "filled": 5, "vetoed": 0, "hash": "3f2a…", "inserted": true }
+```
+
+and `/api/state` includes the latest run summary under `"run"` (decision,
+orders, NAV, hash seal) — absent until the first chained run lands.
+
 ## Notes / next steps
 
-- Every table is append-only; revisions land as new rows, so both the macro
-  register and the price history stay lookahead-proof. Nothing is ever
-  overwritten.
+- Every table is append-only; revisions land as new rows, so the macro
+  register, the price history, and the run chain all stay lookahead-proof.
+  Nothing is ever overwritten.
 - Alpaca's IEX feed is free and sufficient for daily-close marks. If the book
   ever needs intraday or SIP-consolidated prices, that's a paid Alpaca tier —
   same integration, just a plan upgrade, not a code change.
@@ -140,6 +170,6 @@ The full response from a seeded, fully-configured `/api/ingest` looks like:
   broker: Phase 4 (real execution) reuses this same integration for order
   routing, so market data and execution consolidate behind one account instead
   of two.
-- Phase 2 is next: the canonical server-side engine run (decisions, blotter,
-  NAV) as hash-chained records, so the dashboard becomes a pure view onto
-  server-computed state rather than each browser tab recomputing locally.
+- The dashboard still computes its own view locally; making it a pure view
+  onto the server's canonical run (and surfacing the chain in the UI) is the
+  natural next slice, now that the chain exists.

@@ -66,6 +66,20 @@ const b0 = initBook()
 const { vetoed } = execute(b0, planOrders(b0, targetPositions(b0, rr1.rp.weights)), { ruinBreached: false })
 check('routine OMS rebalance has zero vetoes', vetoed === 0, `${vetoed} vetoed`)
 
+// The canonical server run (Phase 2): same advanceWorld as the browser, hash-
+// chained records. run1 reconciles marks off par BEFORE rebalancing — the
+// boundary case a fresh-book rebalance never exercises (a cap-clipped target
+// plus 2dp order rounding must not trip a false preTrade veto).
+const { runEngineStep, verifyChain } = await import(join(ROOT, 'api/_lib/engine.js'))
+const in1 = { reading: { g: 0.5, i: -0.3, source: 'live' }, hyOasBp: 350, knownAt: '2026-01-01T00:00:00.000Z', prices: null }
+const run1 = runEngineStep(null, in1)
+const run2 = runEngineStep(run1, { reading: { g: -0.2, i: 0.4, source: 'live' }, hyOasBp: 410, knownAt: '2026-01-02T00:00:00.000Z', prices: null })
+check('canonical engine run deterministic', same(run1, runEngineStep(null, in1)))
+check('canonical run rebalance (marks off par) zero vetoes', run1.decision.vetoed === 0 && run2.decision.vetoed === 0,
+  `${run1.decision.vetoed}/${run2.decision.vetoed} vetoed`)
+check('hash chain verifies; tampered NAV breaks it',
+  verifyChain([run1, run2]).ok && !verifyChain([{ ...run1, nav: run1.nav + 1 }, run2]).ok)
+
 const disclaimers = execSync(`grep -ri "not investment advice" ${join(ROOT, 'src')} | wc -l`).toString().trim()
 check('disclaimers present (≥2)', Number(disclaimers) >= 2, `${disclaimers} found`)
 

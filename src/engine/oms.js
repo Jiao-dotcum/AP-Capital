@@ -46,20 +46,30 @@ const grossOf = (book) => UNIVERSE.reduce((s, a) => s + Math.abs(notional(book, 
 // single-name and class caps up front so a well-formed rebalance is already
 // compliant; anything the target can't hold falls to cash (under-deployment
 // is the honest cost of concentration limits). preTrade remains the backstop.
+// Clip 10bp of NAV under each cap, not exactly at it. Between planning and
+// the last order's compliance check the book pays slippage on every earlier
+// fill (worst case SLIPPAGE_BP × grossCeiling ≈ 6.4bp of NAV), and planOrders
+// rounds qty up to 2dp — so a target clipped to the exact cap trips preTrade's
+// strict check by that drift: a false veto on a routine rebalance once marks
+// have moved off par. 0.1% under-deployment is the honest cost of the limit.
+const CAP_HEADROOM = 1e-3
+
 export function targetPositions(book, weights) {
   const nav = bookNav(book)
+  const nameCap = LIMITS.maxName * nav * (1 - CAP_HEADROOM)
+  const classCap = LIMITS.maxClass * nav * (1 - CAP_HEADROOM)
   const notionals = {}
   for (const a of UNIVERSE) {
     if (a.id === 'cash') continue
     const w = weights[a.id] ?? 0
-    notionals[a.id] = Math.min(Math.max(w, 0) * nav, LIMITS.maxName * nav)
+    notionals[a.id] = Math.min(Math.max(w, 0) * nav, nameCap)
   }
   // Class caps: scale down every name in an over-cap class proportionally.
   const byClass = {}
   for (const [id, n] of Object.entries(notionals)) byClass[CLASS_OF[id]] = (byClass[CLASS_OF[id]] || 0) + n
   for (const [cls, tot] of Object.entries(byClass)) {
-    if (tot > LIMITS.maxClass * nav) {
-      const f = (LIMITS.maxClass * nav) / tot
+    if (tot > classCap) {
+      const f = classCap / tot
       for (const id of Object.keys(notionals)) if (CLASS_OF[id] === cls) notionals[id] *= f
     }
   }

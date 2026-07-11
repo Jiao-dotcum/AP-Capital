@@ -19,6 +19,7 @@ export async function fetchBackendState() {
       tape: hasReading ? j.tape : null,
       knownAt: j.knownAt ?? null,
       prices: j.prices ?? null, // { TICKER: {close, prevClose, change, asof} }
+      run: j.run ?? null, // latest canonical engine run: { seq, knownAt, decision, orders, nav, prevHash, hash }
     }
   } catch {
     return null

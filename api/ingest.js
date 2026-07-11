@@ -1,7 +1,16 @@
 import dns from 'node:dns'
 import { fetchFredState, fredApiKeyConfigured } from './_lib/ingest.js'
 import { marketConfigured, fetchPrices } from './_lib/marketdata.js'
-import { configured, ensureSchema, insertObservations, saveState, insertPrices } from './_lib/db.js'
+import { runEngineStep, unchangedSinceRun } from './_lib/engine.js'
+import {
+  configured,
+  ensureSchema,
+  insertObservations,
+  saveState,
+  insertPrices,
+  insertEngineRun,
+  getLatestRun,
+} from './_lib/db.js'
 
 // A clean N-second timeout with no DNS/connection error first (as opposed to
 // a fast ENOTFOUND/ECONNREFUSED) is the signature of a broken IPv6 path in a
@@ -50,13 +59,14 @@ export default async function handler(req, res) {
   }
 
   // Macro (FRED)
+  let fredState = null
   try {
-    const state = await fetchFredState()
-    out.knownAt = state.knownAt
-    out.prints = state.prints
+    fredState = await fetchFredState()
+    out.knownAt = fredState.knownAt
+    out.prints = fredState.prints
     if (configured()) {
-      out.observationsStored = await insertObservations(state.records)
-      await saveState(state)
+      out.observationsStored = await insertObservations(fredState.records)
+      await saveState(fredState)
     }
   } catch (err) {
     out.ok = false
@@ -64,14 +74,44 @@ export default async function handler(req, res) {
   }
 
   // Market prices (Alpaca) — independent of the macro fetch above.
+  let prices = null
   if (marketConfigured()) {
     try {
-      const prices = await fetchPrices()
+      prices = await fetchPrices()
       out.tickersFetched = Object.keys(prices).length
       if (configured()) out.pricesStored = await insertPrices(prices)
     } catch (err) {
       out.ok = false
       out.marketError = String(err.message || err)
+    }
+  }
+
+  // Phase 2: the canonical engine run — needs a fresh reading and the DB
+  // (the chain is the whole point; without persistence there is nothing to
+  // append to). Skipped silently when either is missing; a repeat curl with
+  // unchanged FRED data records nothing (the chain logs decisions, not curls).
+  if (configured() && fredState?.reading) {
+    try {
+      const prevRun = await getLatestRun()
+      const inputs = { reading: fredState.reading, hyOasBp: fredState.hyOasBp ?? null, knownAt: fredState.knownAt, prices }
+      if (unchangedSinceRun(prevRun, inputs)) {
+        out.engineRun = { unchanged: true, seq: prevRun.seq, hash: prevRun.hash.slice(0, 12) }
+      } else {
+        const run = runEngineStep(prevRun, inputs)
+        const inserted = await insertEngineRun(run)
+        out.engineRun = {
+          seq: run.seq,
+          nav: run.nav,
+          dial: run.decision.dial,
+          filled: run.decision.filled,
+          vetoed: run.decision.vetoed,
+          hash: run.hash.slice(0, 12),
+          inserted,
+        }
+      }
+    } catch (err) {
+      out.ok = false
+      out.engineError = String(err.message || err)
     }
   }
 
