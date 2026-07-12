@@ -4,10 +4,10 @@ import { CYCLE0, evolveCycle } from './cycle.js'
 import { UNIVERSE, CASH_RATE, SURPRISE_PP, MARKET_VOL, monthlyReturn, stressAmp } from './assets.js'
 import { BACKTEST_SEED, BACKTEST_MONTHS } from './backtest.js'
 
-// ————— Real risk math —————
+// ————— Real risk math (the All Weather Core mandate's book) —————
 // Covariance estimated from monthly returns with Ledoit–Wolf shrinkage
 // (replacing the flat ρ = 0.25), crisis-stressed correlations, four-season
-// risk-parity sizing with the dial scaling gross, empirical CVaR, a
+// risk-parity sizing at a fixed 1.0× gross, empirical CVaR, a
 // drawdown-triggered de-risking schedule, and a block-bootstrap Monte Carlo
 // with named crisis replays. Everything seeded, everything reproducible.
 
@@ -127,7 +127,7 @@ export function crisisAvgRho(hist) {
   }
 }
 
-// ————— Four-season risk parity, dial scaling gross —————
+// ————— Four-season risk parity (the All Weather Core mandate) —————
 export const SEASONS = [
   { name: 'Rising Growth', ids: ['usEq', 'dmEq', 'emEq', 'igc', 'emd', 'gsci', 'wti', 'cu', 'fxc', 'arb'] },
   { name: 'Falling Growth', ids: ['ust10', 'ust30', 'cgb', 'vix'] },
@@ -145,9 +145,19 @@ const quad = (w, cov) => {
 // then let capital fall out. Standalone-vol equalization is robust to hedge
 // sleeves whose marginal contribution to the combined book is negative —
 // which true equal-risk-contribution is not, since you cannot assign a hedge
-// a positive risk share. The dial scales gross from 0.5× (deep froth) to
-// 1.5× (deep despair); the balance sits in — or is borrowed from — cash.
-export function seasonRiskParity(assets, cov, dial) {
+// a positive risk share.
+//
+// THE DECOUPLING: this book — the All Weather Core mandate — runs at a FIXED
+// 1.0× gross. The Aggressiveness Dial used to scale gross 0.5×–1.5× here;
+// the 22-year walk-forward showed the coupling costs return, volatility,
+// drawdown, and Sharpe simultaneously, because the dial is a lagged echo of
+// the same macro surprise the beta book is already exposed to (one factor,
+// counted twice). The dial's authority now stops at the Cycle Credit
+// mandate's border (`creditWeightsFor` in cycle.js). Do not re-wire the dial
+// into this book without new multi-seed backtest evidence.
+export const CORE_GROSS = 1.0
+
+export function seasonRiskParity(assets, cov) {
   const ids = assets.filter((a) => a.id !== 'cash').map((a) => a.id)
   const pos = Object.fromEntries(ids.map((id, k) => [id, k]))
   const sub = ids.map((i) => ids.map((j) => cov[IDX[i]][IDX[j]]))
@@ -171,7 +181,7 @@ export function seasonRiskParity(assets, cov, dial) {
   const lamTot = lam.reduce((a, b) => a + b, 0)
   lam = lam.map((l) => l / lamTot)
 
-  const gross = +(0.5 + dial / 100).toFixed(2)
+  const gross = CORE_GROSS
   const w = Array(ids.length).fill(0)
   seasons.forEach((_, s) => base[s].forEach((b, k) => (w[k] += lam[s] * b)))
 
@@ -295,11 +305,11 @@ export function runReplays(weights, cashW) {
 
 // ————— The report the dashboard reads —————
 let _lw = null
-export function buildRiskReport(assets, dial) {
+export function buildRiskReport(assets) {
   if (!assets.length) return null
   const hist = returnHistory()
   if (!_lw) _lw = ledoitWolf(hist.R)
-  const rp = seasonRiskParity(assets, _lw.cov, dial)
+  const rp = seasonRiskParity(assets, _lw.cov)
   if (!rp) return null
   const crisis = crisisAvgRho(hist)
   return {

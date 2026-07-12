@@ -176,7 +176,7 @@ export default function Desks({ screen, triggers, deploy, cycle, powderPct, edga
         <div className={`panel ${deploy ? 'panel--laurel' : 'panel--quiet'}`}>
           <h3 className="panel__title">Opportunistic Desk — Dry Powder</h3>
           <div className="gear__figure">
-            {powderPct}%<span className="lbl lbl--bronze"> of book held as powder</span>
+            {powderPct}%<span className="lbl lbl--bronze"> of the credit mandate held as powder</span>
           </div>
           {triggers.map((t) => (
             <div key={t.name} className="trigger">

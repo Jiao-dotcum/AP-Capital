@@ -3,8 +3,8 @@ import { mulberry32 } from '../../src/engine/prng.js'
 import { SEED, DEFAULT_ELECTED, seedWorld, advanceWorld } from '../../src/engine/world.js'
 import { UNIVERSE, CASH_RATE } from '../../src/engine/assets.js'
 import { regimeOf, riskOfRuin, RUIN_CEILING } from '../../src/engine/machine.js'
-import { postureOf, triggersFrom, deployAuthorized } from '../../src/engine/cycle.js'
-import { buildRiskReport, DERISK_SCHEDULE } from '../../src/engine/risk.js'
+import { postureOf, triggersFrom, deployAuthorized, houseView, creditWeightsFor } from '../../src/engine/cycle.js'
+import { buildRiskReport, DERISK_SCHEDULE, CORE_GROSS } from '../../src/engine/risk.js'
 import { gradeBook } from '../../src/engine/grades.js'
 import { initBook, markStep, reconcile, targetPositions, planOrders, execute, bookNav, LIMITS } from '../../src/engine/oms.js'
 import { sleeveReturns } from '../../src/engine/proxies.js'
@@ -85,11 +85,13 @@ export function runEngineStep(prevRun, { reading, hyOasBp = null, knownAt, price
   const world = advanceWorld(rng, world0, reading, hyOasBp)
   const dial = world.dialOverride ?? world.autoDial
 
-  // The canonical book runs the default elected set — the same six sleeves the
-  // dashboard elects on load — sized by the same risk-parity engine. The full
+  // The canonical book is the All Weather Core mandate: the default elected
+  // set sized by risk parity at fixed 1.0× gross. THE DECOUPLING: the dial
+  // no longer enters this book — its authority is scoped to the credit
+  // mandate (recorded in the decision, not traded by this OMS). The full
   // risk report (not just weights) feeds the sealed risk block below.
   const elected = UNIVERSE.filter((a) => DEFAULT_ELECTED.includes(a.id))
-  const rr = buildRiskReport(elected, dial)
+  const rr = buildRiskReport(elected)
   const rp = rr.rp
 
   // Marks: real closes where the price feed has them, factor model elsewhere —
@@ -114,12 +116,11 @@ export function runEngineStep(prevRun, { reading, hyOasBp = null, knownAt, price
     const currentW = wOf(marked.positions[o.id]?.qty ?? 0, o.id)
     const targetW = wOf(targets[o.id] ?? 0, o.id)
     const g = grades[o.id]
-    const dialWord = dialOverride != null ? `dial ${dial} (${posture.word}, human-ratified)` : `dial ${dial} (${posture.word}, automatic)`
     const capped = (rp.weights[o.id] ?? 0) * navPlan > LIMITS.maxName * navPlan - 1
     const rationale =
       `${o.side} to move ${o.name} from ${(currentW * 100).toFixed(1)}% to ${(targetW * 100).toFixed(1)}% of NAV: ` +
-      `four-season risk parity (standalone-vol equalization) under ${dialWord}, regime ${regime.label}. ` +
-      `Unified grade ${g.letter} (${g.score}).` +
+      `All Weather Core mandate — four-season risk parity (standalone-vol equalization) at fixed ${CORE_GROSS.toFixed(1)}× gross, ` +
+      `regime ${regime.label}. Unified grade ${g.letter} (${g.score}).` +
       (capped ? ` Target clipped by the ${LIMITS.maxName * 100}% single-name cap.` : '') +
       (ruinBreached ? ' Ruin ceiling breached — reduce-only session.' : '')
     return { ...o, currentW, targetW, grade: { letter: g.letter, score: g.score }, rationale }
@@ -130,12 +131,13 @@ export function runEngineStep(prevRun, { reading, hyOasBp = null, knownAt, price
   const triggers = triggersFrom(world.cycle)
   const decision = {
     regime: regime.key,
-    dial,
+    dial, // governs the Cycle Credit mandate only (the decoupling)
     dialOverride: dialOverride ?? null, // non-null = this dial was human-ratified
     posture: posture.word,
-    sleeveWeights: world.weights, // five-sleeve anchor weights, %
-    rpWeights: Object.fromEntries(Object.entries(rp.weights).map(([k, v]) => [k, +v.toFixed(4)])), // fraction of NAV
-    gross: +rp.gross.toFixed(3),
+    sleeveWeights: houseView(dial), // firm five-sleeve view: Core fixed, credit dial-scoped, %
+    creditSleeves: creditWeightsFor(dial), // [performing, distressed, powder] % of the credit mandate
+    rpWeights: Object.fromEntries(Object.entries(rp.weights).map(([k, v]) => [k, +v.toFixed(4)])), // Core book, fraction of NAV
+    gross: +rp.gross.toFixed(3), // fixed CORE_GROSS by construction
     triggersArmed: triggers.filter((t) => t.armed).map((t) => t.name),
     deploy: deployAuthorized(triggers),
     ruin: +ruin.toFixed(4),

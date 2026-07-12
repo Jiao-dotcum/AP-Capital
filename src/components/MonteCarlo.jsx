@@ -107,7 +107,7 @@ export default function MonteCarlo({ assets, risk = null }) {
         <p className="footnote">
           {N_PATHS} geometric Brownian paths, {N_QUARTERS} quarterly steps.{' '}
           {risk
-            ? `Risk-parity book on the Ledoit–Wolf-shrunk covariance (δ = ${risk.lw.delta}), dial gross ${risk.rp.gross}×.`
+            ? `Risk-parity book on the Ledoit–Wolf-shrunk covariance (δ = ${risk.lw.delta}), fixed ${risk.rp.gross}× gross (Core mandate — the dial has no authority here).`
             : `Pairwise correlation assumption ρ = ${PAIRWISE_RHO}, equal weight.`}{' '}
           Portfolio μ {(mu * 100).toFixed(1)}% · σ {(sigma * 100).toFixed(1)}% annualized. Seeded —
           identical elections reproduce identical fans.

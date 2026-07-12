@@ -16,6 +16,8 @@ const MARKERS = [
   'Sourcing Engine', 'Live Fundamentals — SEC EDGAR', 'ratings-transition matrix',
   'Risk Desk', 'Proving Ground', 'The Execution Desk', 'The Firm',
   'Believability standings', 'Merger Arbitrage',
+  // The two-mandate structure (the decoupling)
+  'AP Cycle Credit', 'AP All Weather Core', 'The Two Mandates',
 ]
 
 const fails = []
@@ -44,8 +46,9 @@ check('backtest deterministic', same(bt1, runBacktest()))
 check('windowStats(10y) sane', (() => { const w = windowStats(bt1.series.managed, 10); return w.months === 120 && Number.isFinite(w.cagr) })())
 
 const elected = UNIVERSE.filter((a) => ['usEq', 'ust10', 'tips', 'gold', 'gsci', 'cash'].includes(a.id))
-const rr1 = buildRiskReport(elected, 50)
-check('risk report deterministic', same(rr1, buildRiskReport(elected, 50)))
+const rr1 = buildRiskReport(elected)
+check('risk report deterministic', same(rr1, buildRiskReport(elected)))
+check('Core gross fixed at 1.0 (the decoupling)', rr1.rp.gross === 1, `gross ${rr1.rp.gross}`)
 const shares = rr1.rp.seasons.map((s) => s.risk)
 check('season risk shares equal', Math.max(...shares) - Math.min(...shares) <= 2, shares.join('/'))
 

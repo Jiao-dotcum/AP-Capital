@@ -151,16 +151,37 @@ export function postureOf(dial) {
   return { word: 'Offense', note: 'Despair: the market pays you to take risk. Deploy powder into forced selling.' }
 }
 
-// ————— The unified book: five sleeves modulated by the dial —————
+// ————— The five sleeves, now split across two mandates —————
+// THE DECOUPLING: the firm runs two separate mandates with a FIXED capital
+// split between them. The dial's authority is scoped to the credit mandate —
+// it no longer moves capital out of the Core, and it no longer levers the
+// Core's gross (see CORE_GROSS in risk.js). The 22-year walk-forward showed
+// the old coupling (dial modulating the whole book) cost return, vol,
+// drawdown, and Sharpe at once: the dial is a lagged echo of the same macro
+// surprise the beta book already carries — one factor, counted twice.
 export const SLEEVES = [
-  { name: 'All Weather Beta', engine: 'Bridgewater' },
-  { name: 'Pure Alpha Macro Tilts', engine: 'Bridgewater' },
-  { name: 'Performing Credit', engine: 'Oaktree · Panossian' },
-  { name: 'Opportunistic / Distressed', engine: 'Oaktree · O’Leary' },
-  { name: 'Cash & T-Bills — Dry Powder', engine: 'Marks' },
+  { name: 'All Weather Beta', engine: 'Bridgewater', mandate: 'core' },
+  { name: 'Pure Alpha Macro Tilts', engine: 'Bridgewater', mandate: 'core' },
+  { name: 'Performing Credit', engine: 'Oaktree · Panossian', mandate: 'credit' },
+  { name: 'Opportunistic / Distressed', engine: 'Oaktree · O’Leary', mandate: 'credit' },
+  { name: 'Cash & T-Bills — Dry Powder', engine: 'Marks', mandate: 'credit' },
 ]
 
+// Fixed split of firm capital between the two mandates (percent). Chosen as
+// the neutral-dial anchor's implied split so the neutral posture is
+// unchanged by the decoupling; each mandate is a separate product with its
+// own investors in the long-term structure, so the split does not breathe
+// with the cycle.
+export const MANDATE_SPLIT = { core: 45, credit: 55 }
+
+// Within the CORE mandate the two sleeves are fixed (no dial input at all):
+// beta 35 / alpha 10 of firm capital, i.e. ~78/22 of the mandate.
+export const CORE_SLEEVES = [35, 10]
+
 // Anchor allocations at dial 20 / 50 / 80; linear interpolation between.
+// Retained verbatim as the historical coupled policy: the backtest walks it
+// (that evidence justified the decoupling), and the credit mandate's
+// internal weights are derived from its last three columns below.
 export const ANCHORS = [
   { d: 20, w: [40, 5, 20, 0, 35] },
   { d: 50, w: [35, 10, 30, 5, 20] },
@@ -181,6 +202,31 @@ export function weightsFor(dial) {
   const t = hi.d === lo.d ? 0 : (d - lo.d) / (hi.d - lo.d)
   const w = lo.w.map((v, k) => Math.round(v + (hi.w[k] - v) * t))
   // rounding drift lands in the cash sleeve so the book always sums to 100
+  w[4] += 100 - w.reduce((s, v) => s + v, 0)
+  return w
+}
+
+// The Cycle Credit mandate's internal allocation: [performing, distressed,
+// dry powder] as % of the MANDATE (sums to 100). Derived by renormalizing
+// the credit columns of the same anchors — one formula, one module — so the
+// dial keeps exactly the posture curve it always had, scoped to the book it
+// actually measures.
+export function creditWeightsFor(dial) {
+  const w = weightsFor(dial)
+  const credit = [w[2], w[3], w[4]]
+  const tot = credit.reduce((s, v) => s + v, 0)
+  const out = credit.map((v) => Math.round((100 * v) / tot))
+  out[2] += 100 - out.reduce((s, v) => s + v, 0) // drift lands in powder
+  return out
+}
+
+// The firm-level five-sleeve view under the decoupled structure: Core fixed,
+// credit sleeves = the mandate split × creditWeightsFor. Sums to 100. This
+// is what the memo, the allocation panel, and the tearsheet quote.
+export function houseView(dial) {
+  const cw = creditWeightsFor(dial)
+  const credit = cw.map((v) => Math.round((MANDATE_SPLIT.credit * v) / 100))
+  const w = [...CORE_SLEEVES, ...credit]
   w[4] += 100 - w.reduce((s, v) => s + v, 0)
   return w
 }

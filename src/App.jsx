@@ -6,7 +6,8 @@ import {
   proxyScores,
   dialFrom,
   postureOf,
-  weightsFor,
+  houseView,
+  creditWeightsFor,
   triggersFrom,
   deployAuthorized,
 } from './engine/cycle.js'
@@ -40,6 +41,7 @@ import {
   Masthead,
   SectionHead,
   ColumnDivider,
+  MandateBanner,
   HardstopBanner,
   Footer,
 } from './components/chrome.jsx'
@@ -127,7 +129,11 @@ export default function App() {
   const composite = dialFrom(scores)
   const autoDial = world.autoDial
   const dial = world.dialOverride ?? autoDial
-  const weights = useMemo(() => weightsFor(dial), [dial])
+  // THE DECOUPLING: the dial's authority is scoped to the Cycle Credit
+  // mandate. houseW is the firm five-sleeve view (Core fixed, credit
+  // dial-scoped); creditW is the credit mandate's internal allocation.
+  const houseW = useMemo(() => houseView(dial), [dial])
+  const creditW = useMemo(() => creditWeightsFor(dial), [dial])
   const screen = useMemo(() => screenPerforming(world.cycle), [world.cycle])
   const triggers = useMemo(() => triggersFrom(world.cycle), [world.cycle])
   const deploy = deployAuthorized(triggers)
@@ -141,11 +147,11 @@ export default function App() {
         posture: postureOf(dial),
         cycle: world.cycle,
         screen,
-        weights,
+        weights: houseW,
         deploy,
         baseRates,
       }),
-    [world.releaseN, dial, world.cycle, screen, weights, deploy, baseRates],
+    [world.releaseN, dial, world.cycle, screen, houseW, deploy, baseRates],
   )
   const memoIsLive = liveMemo !== null && liveMemo.releaseN === world.releaseN
   const memo = memoIsLive
@@ -159,12 +165,10 @@ export default function App() {
 
   const electedAssets = useMemo(() => UNIVERSE.filter((a) => elected.has(a.id)), [elected])
 
-  // Real risk math: Ledoit–Wolf covariance, risk-parity sizing with the dial
-  // scaling gross, CVaR, and the block-bootstrap replays for the elected book.
-  const riskReport = useMemo(
-    () => buildRiskReport(electedAssets, dial),
-    [electedAssets, dial],
-  )
+  // Real risk math for the Core book: Ledoit–Wolf covariance, risk-parity
+  // sizing at fixed 1.0× gross (the dial has no authority here — the
+  // decoupling), CVaR, and the block-bootstrap replays for the elected book.
+  const riskReport = useMemo(() => buildRiskReport(electedAssets), [electedAssets])
 
   // The Origination Desk re-ranks its docket from the same derived signals.
   const ideas = useMemo(
@@ -421,30 +425,19 @@ export default function App() {
 
       {breached && <HardstopBanner risk={risk} ceiling={RUIN_CEILING} />}
 
+      {/* ————— MANDATE I — the Oaktree engine, where the dial lives ————— */}
+      <MandateBanner
+        kicker="Mandate I · The Oaktree Engine"
+        name="AP Cycle Credit"
+        engine="Marks · Panossian · O’Leary — patient, concentrated, cycle-aware"
+        note="Credit bought only when the price pays for the risk. Waits in dry powder; deploys into despair; priced by second-level thinking. The Aggressiveness Dial lives here — and its authority stops at this mandate’s border. Structured for qualified investors."
+      />
+
       <section className="section">
         <SectionHead
           numeral="I"
-          title="The Machine"
-          note="The Bridgewater engine diagnoses the environment: growth against what was priced, inflation against what was priced. The compass reads the regime; the gears turn beneath it."
-        />
-        <Plate plate={PLATES.airpump} />
-        <div className="grid-hero">
-          <div className="panel">
-            <Compass trail={world.trail} />
-          </div>
-          <Gears current={current} />
-        </div>
-        <Releases current={current} tape={liveTape} />
-        <Provenance store={pit} />
-      </section>
-
-      <ColumnDivider />
-
-      <section className="section">
-        <SectionHead
-          numeral="II"
           title="The Cycle"
-          note="The Oaktree engine decides how aggressive to be within it. You cannot predict the cycle; you can measure where you stand and calibrate offense against defense."
+          note="This mandate’s compass. You cannot predict the cycle; you can measure where you stand and calibrate offense against defense. The dial that settles here sizes only the credit book below it."
         />
         <Plate plate={colePlate} key={colePlate.title} />
         <CycleGauge
@@ -462,30 +455,7 @@ export default function App() {
 
       <section className="section">
         <SectionHead
-          numeral="III"
-          title="Beta — All Weather"
-          note="The strategic book. Harvest the risk premium in every season by balancing risk, not capital."
-        />
-        <Plate plate={PLATES.poussin} />
-        <AllWeather />
-      </section>
-
-      <ColumnDivider />
-
-      <section className="section">
-        <SectionHead
-          numeral="IV"
-          title="Alpha — Pure Alpha"
-          note="The tactical book. Written principles, systematically applied — the same input always yields the same tilt."
-        />
-        <PureAlpha current={current} />
-      </section>
-
-      <ColumnDivider />
-
-      <section className="section">
-        <SectionHead
-          numeral="V"
+          numeral="II"
           title="The Credit Desks"
           note="Bottom-up selection: the performing desk earns carry through the gates; the opportunistic desk holds powder and waits for despair. If we avoid the losers, the winners take care of themselves."
         />
@@ -494,7 +464,7 @@ export default function App() {
           triggers={triggers}
           deploy={deploy}
           cycle={world.cycle}
-          powderPct={weights[4] + (deploy ? 0 : weights[3])}
+          powderPct={creditW[2] + (deploy ? 0 : creditW[1])}
           edgar={edgar}
           onFetchEdgar={fetchEdgar}
           edgarFetching={edgarFetching}
@@ -506,11 +476,59 @@ export default function App() {
 
       <section className="section">
         <SectionHead
-          numeral="VI"
+          numeral="III"
           title="The Origination Desk"
-          note="Where the next dollar goes. Every signal the machine produces — regime, posture, carry, divergence — folded into one ranked docket of nominations. The desk proposes; the committee disposes."
+          note="Where this mandate’s next dollar goes. Every signal the machine produces — regime, posture, carry, divergence — folded into one ranked docket of nominations. The desk proposes; the committee disposes."
         />
         <Origination ideas={ideas} sourcing={sourcing} />
+      </section>
+
+      {/* ————— MANDATE II — the Bridgewater engine, no dial input ————— */}
+      <MandateBanner
+        kicker="Mandate II · The Bridgewater Engine"
+        name="AP All Weather Core"
+        engine="Dalio’s machine — always invested, risk-balanced, fixed 1.0× gross"
+        note="The steady book: harvest the risk premium in every economic season by balancing risk, not capital. No cycle timing, no leverage that breathes — the dial has no authority on this side of the wall. The decoupling is the design, not an accident."
+      />
+
+      <section className="section">
+        <SectionHead
+          numeral="IV"
+          title="The Machine"
+          note="This mandate’s diagnosis: growth against what was priced, inflation against what was priced. The compass reads the regime; the gears turn beneath it."
+        />
+        <Plate plate={PLATES.airpump} />
+        <div className="grid-hero">
+          <div className="panel">
+            <Compass trail={world.trail} />
+          </div>
+          <Gears current={current} />
+        </div>
+        <Releases current={current} tape={liveTape} />
+        <Provenance store={pit} />
+      </section>
+
+      <ColumnDivider />
+
+      <section className="section">
+        <SectionHead
+          numeral="V"
+          title="Beta — All Weather"
+          note="The strategic book. Harvest the risk premium in every season by balancing risk, not capital."
+        />
+        <Plate plate={PLATES.poussin} />
+        <AllWeather />
+      </section>
+
+      <ColumnDivider />
+
+      <section className="section">
+        <SectionHead
+          numeral="VI"
+          title="Alpha — Pure Alpha"
+          note="The tactical book. Written principles, systematically applied — the same input always yields the same tilt."
+        />
+        <PureAlpha current={current} />
       </section>
 
       <ColumnDivider />
@@ -519,7 +537,7 @@ export default function App() {
         <SectionHead
           numeral="VII"
           title="The Register"
-          note="Seventeen liquid holdings, each carrying its unified grade — the one composite the whole firm quotes — ranked into five tiers, best to worst. Tick to elect into the working portfolio."
+          note="Seventeen liquid holdings, each carrying its unified grade — the one composite the whole firm quotes — ranked into five tiers, best to worst. Tick to elect into the Core’s working portfolio."
         />
         <Register current={current} elected={elected} grades={grades} onToggle={toggleAsset} />
       </section>
@@ -529,19 +547,8 @@ export default function App() {
       <section className="section">
         <SectionHead
           numeral="VIII"
-          title="The Allocation"
-          note="Five sleeves, one dial. Bridgewater supplies the balance; Oaktree supplies the temperature; Marks supplies the patience."
-        />
-        <Allocation weights={weights} dial={dial} />
-      </section>
-
-      <ColumnDivider />
-
-      <section className="section">
-        <SectionHead
-          numeral="IX"
           title="Monte Carlo Simulation"
-          note="Four hundred paths of the elected book over ten years. The distribution is the forecast."
+          note="Four hundred paths of the elected Core book over ten years. The distribution is the forecast."
         />
         <MonteCarlo assets={electedAssets} risk={riskReport} />
       </section>
@@ -550,11 +557,28 @@ export default function App() {
 
       <section className="section">
         <SectionHead
-          numeral="X"
+          numeral="IX"
           title="Returns Ledger"
           note="The analytic account of every elected holding, stated in the measures appropriate to liquid assets."
         />
         <Ledger assets={electedAssets} />
+      </section>
+
+      {/* ————— THE FIRM — shared infrastructure beneath both mandates ————— */}
+      <MandateBanner
+        kicker="The Firm"
+        name="Shared Infrastructure"
+        engine="One machine beneath both mandates"
+        note="Capital governance, paper execution, the agent firm, and the proving ground. The wall between the mandates is enforced here — and the evidence for building it is published below."
+      />
+
+      <section className="section">
+        <SectionHead
+          numeral="X"
+          title="The Two Mandates"
+          note="Two engines, two jurisdictions, one fixed split of capital. Bridgewater runs the Core at constant gross; Oaktree runs Credit through the dial; neither reaches into the other’s book. The wall is the design — the proving ground priced the old coupling and the firm declined to keep paying for it."
+        />
+        <Allocation dial={dial} houseW={houseW} creditW={creditW} />
       </section>
 
       <ColumnDivider />
@@ -563,7 +587,7 @@ export default function App() {
         <SectionHead
           numeral="XI"
           title="The Execution Desk"
-          note="The book, actually traded — on paper. Own capital, listed proxies, simulated fills; pre-trade compliance vetoes an order exactly as the risk agent vetoes a trade. Nothing here is real-money or outside-money automation, and nothing here is investment advice."
+          note="The Core book, actually traded — on paper. Own capital, listed proxies, simulated fills; pre-trade compliance vetoes an order exactly as the risk agent vetoes a trade. Nothing here is real-money or outside-money automation, and nothing here is investment advice."
         />
         <Execution
           book={book}
@@ -603,7 +627,7 @@ export default function App() {
         <SectionHead
           numeral="XIII"
           title="Safeguards"
-          note="The machine assumes it will sometimes be wrong. The question is only how much that costs."
+          note="The machine assumes it will sometimes be wrong. The question is only how much that costs. The proving ground below is also the court record of the decoupling: the fixed-mix book beat the dial-coupled book on every axis."
         />
         <Plate plate={PLATES.socrates} />
         <Safeguards current={current} />
@@ -621,7 +645,7 @@ export default function App() {
         grades={grades}
         baseRates={baseRates}
         memo={memo}
-        weights={weights}
+        weights={houseW}
       />
     </div>
   )

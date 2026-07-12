@@ -47,9 +47,23 @@ export function Masthead() {
     <header className="masthead">
       <Pediment />
       <h1 className="masthead__title">The Complete Machine</h1>
-      <p className="masthead__sub">Bridgewater × Oaktree · An Autonomous Fund Diagnostic</p>
+      <p className="masthead__sub">Two Mandates, One Machine — AP Cycle Credit × AP All Weather Core · Simulated/Paper</p>
       <Meander />
     </header>
+  )
+}
+
+// The two-fund structure: each mandate opens with its own nameplate. The
+// decoupling gives each engine one clearly-bordered jurisdiction — the banner
+// is that border, made visible.
+export function MandateBanner({ kicker, name, engine, note }) {
+  return (
+    <div className="mandate">
+      <div className="mandate__kicker">{kicker}</div>
+      <h2 className="mandate__name">{name}</h2>
+      <div className="mandate__engine">{engine}</div>
+      <p className="mandate__note">{note}</p>
+    </div>
   )
 }
 

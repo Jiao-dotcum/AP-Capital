@@ -173,6 +173,46 @@ body {
   margin-right: auto;
 }
 
+/* ————— Mandate banners: the two-fund structure ————— */
+.mandate {
+  text-align: center;
+  margin: var(--space-5) auto 0;
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--gilt);
+}
+
+.mandate__kicker {
+  font-family: var(--font-mono);
+  font-size: var(--fs-caption);
+  letter-spacing: 0.24em;
+  text-indent: 0.24em;
+  text-transform: uppercase;
+  color: var(--limestone);
+}
+
+.mandate__name {
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: var(--fs-figure);
+  letter-spacing: 0.05em;
+  margin: 0.3rem 0 0.15rem;
+}
+
+.mandate__engine {
+  font-family: var(--font-mono);
+  font-size: var(--fs-label);
+  letter-spacing: 0.08em;
+  color: var(--bronze);
+}
+
+.mandate__note {
+  margin: 0.55rem auto 0;
+  font-size: var(--fs-body);
+  font-style: italic;
+  color: var(--bronze);
+  max-width: 46rem;
+}
+
 .divider {
   display: flex;
   align-items: center;

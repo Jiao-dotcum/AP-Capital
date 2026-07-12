@@ -8,10 +8,13 @@ file in the same commit.
 ## What this is
 
 A single-page React app (Vite, Vercel) simulating a Bridgewater × Oaktree
-autonomous fund — macro regime reading, credit-cycle dial, risk-parity book,
-credit screens, walk-forward backtest, paper-trading OMS, and an 8-layer agent
-firm — plus a growing serverless backend (`api/`) that feeds it live FRED and
-market data. The owner intends to raise real capital and route it through this
+autonomous fund run as **two decoupled mandates** — AP Cycle Credit (the
+Oaktree engine: credit-cycle dial, credit screens, dry powder; sections I–III)
+and AP All Weather Core (the Bridgewater engine: macro regime reading,
+risk-parity book at fixed 1.0× gross; sections IV–IX) — over shared firm
+infrastructure (allocation governance, paper-trading OMS, 8-layer agent firm,
+walk-forward backtest; sections X–XIII), plus a growing serverless backend
+(`api/`) that feeds it live FRED and market data. The owner intends to raise real capital and route it through this
 machine eventually; today everything is **simulated or paper**, and the code
 enforces that boundary (see The Charter, bottom). Treat every change as if a
 regulator and an investor will both read it later, because they might.
@@ -70,8 +73,14 @@ function. Never advance the world any other way.
   - `cycle.js` — credit-cycle evolution coupled to macro stress; seven proxies
     scored as **percentiles** in a rolling history (a seeded ten-year
     climatology + the session's cycle states); the Aggressiveness Dial settled
-    through a ±5-point deadband (`settleDial`); five-sleeve anchor weights;
-    dry-powder triggers (≥2 armed authorizes).
+    through a ±5-point deadband (`settleDial`); dry-powder triggers (≥2 armed
+    authorizes). **The two mandates** (the decoupling): `MANDATE_SPLIT` fixes
+    firm capital at Core 45 / Credit 55; `creditWeightsFor(dial)` is the
+    Cycle Credit mandate's internal [performing, distressed, powder] split
+    (the dial's ONLY jurisdiction); `houseView(dial)` is the firm five-sleeve
+    view with Core fixed. The legacy `weightsFor` anchors remain verbatim —
+    the backtest walks them as the coupled policy the firm measured and
+    rejected.
   - `credit.js` — 10 issuers from structural fundamentals; Merton
     distance-to-default from EV-multiple/leverage/asset-vol; PD via an
     **empirically calibrated DtD→PD map** (`pdFromDtD` — the Gaussian tail is
@@ -90,9 +99,10 @@ function. Never advance the world any other way.
   - `risk.js` — Ledoit–Wolf shrunk covariance from the same 22-year history
     the backtest walks (identical rng draw order — see Invariant 3); risk-on
     crisis-vs-calm correlation; four-season risk parity by **standalone-vol
-    equalization** (not ERC — see failure mode); dial scales gross 0.5×–1.5×;
-    CVaR 95/99; drawdown de-risking schedule; block-bootstrap MC with named
-    crisis replays.
+    equalization** (not ERC — see failure mode) at **fixed `CORE_GROSS` =
+    1.0×** — the dial no longer scales this book's gross (see "one factor,
+    counted twice"); CVaR 95/99; drawdown de-risking schedule;
+    block-bootstrap MC with named crisis replays.
   - `backtest.js` — 22y walk-forward, rules frozen at T, graded at T+1;
     per-principle/regime/dial hit rates; turnover with/without deadband;
     exposes the monthly return `series` and `windowStats(series, years)` for
@@ -249,6 +259,18 @@ unless it follows the rule.
   into chat. → *Rule: secrets go directly into the Vercel env UI, never into
   chat, code, or commits. If one is exposed, rotate it immediately. Neon
   connection strings must be the pooled (`-pooler`) variant for serverless.*
+- **One factor, counted twice.** The Aggressiveness Dial (credit-cycle
+  despair) originally scaled the WHOLE book's gross 0.5×–1.5× and slid
+  capital between all five sleeves. But the credit cycle is computed FROM the
+  macro surprise (`stress = −g + 0.35i`), so the dial is a lagged echo of the
+  same factor the beta book already carries — the coupling levered the book
+  up during its own drawdowns. The walk-forward priced it: worse CAGR, vol,
+  maxDD, and Sharpe at once; across 30 seeds the decoupled book won vol
+  25/30, maxDD 24/30, Sharpe 21/30. → *Rule: the dial's authority stops at
+  the Cycle Credit mandate's border (`creditWeightsFor`); the Core runs at
+  fixed `CORE_GROSS`. Do not re-wire the dial into the Core "for elegance" —
+  a signal's quality does not grant it sizing authority over books exposed to
+  the factor it lags. Any re-coupling requires fresh multi-seed evidence.*
 
 ## Quality bars (checkable, not adjectives)
 

@@ -7,24 +7,37 @@ the standing rules; every daily engine run seals the *live values* of these
 rules into its hash-chained journal record, so the policy and the practice
 are auditable against each other.
 
-## 1. Capital allocation — how much, to what, and why
+## 1. Capital allocation — two mandates, one wall
 
-- **Strategic sizing is four-season risk parity** by standalone-vol
-  equalization: the book balances *risk*, not capital, across Rising Growth,
-  Falling Growth, Rising Inflation, and Falling Inflation seasons. The check:
-  season risk shares read ~25/25/25/25 every run (`risk.seasons` in the
-  journal).
-- **The Aggressiveness Dial (0–100) scales gross exposure 0.5×–1.5×.** The
-  dial is a percentile composite of seven credit-cycle proxies settled
-  through a ±5-point deadband; it cannot jump on noise. Defense < 35,
-  Neutral 35–65, Offense > 65.
+The firm runs **two decoupled mandates with a fixed capital split** (Core 45 /
+Credit 55). Each engine has exactly one jurisdiction; neither reaches into
+the other's book. The wall exists because the walk-forward priced the old
+coupling (the dial levering the whole book) and it cost return, volatility,
+drawdown, and Sharpe simultaneously — across 30 seeded histories the
+decoupled structure won on volatility 25/30, max drawdown 24/30, and Sharpe
+21/30.
+
+- **AP All Weather Core (the Bridgewater engine).** Four-season risk parity
+  by standalone-vol equalization at a **fixed 1.0× gross**: the book balances
+  *risk*, not capital, across Rising Growth, Falling Growth, Rising
+  Inflation, and Falling Inflation. The check: season risk shares read
+  ~25/25/25/25 every run (`risk.seasons` in the journal). No cycle timing,
+  no leverage that breathes — the dial has no authority here.
+- **AP Cycle Credit (the Oaktree engine).** The Aggressiveness Dial (0–100,
+  a percentile composite of seven credit-cycle proxies settled through a
+  ±5-point deadband — Defense < 35, Neutral 35–65, Offense > 65) sizes ONLY
+  this mandate's internal allocation across performing credit, distressed,
+  and dry powder (`creditWeightsFor`). Defense hoards powder; offense
+  deploys into despair.
 - **Human ratification (the override)** may pin the dial at any value or
   resume automatic. Every override is an append-only record, and the run
   that obeys it says so inside the sealed decision (`decision.dialOverride`).
+  The override inherits the dial's scope: it moves the credit mandate, never
+  the Core.
 - **Every order carries its reason.** Rationale is generated at planning
-  time from the same state that produced the order (regime, dial, posture,
-  target vs. current weight, unified grade) and sealed with the trade —
-  never reconstructed after the fact.
+  time from the same state that produced the order (mandate, strategy,
+  regime, target vs. current weight, unified grade) and sealed with the
+  trade — never reconstructed after the fact.
 
 ## 2. Position limits (pre-trade compliance)
 
@@ -66,7 +79,9 @@ Sealed into each journal record (`risk`):
 ## 5. Execution and P&L discipline
 
 - **Cadence**: one canonical rebalance per trading day, after US close
-  (21:30 UTC cron). No intraday trading.
+  (21:30 UTC cron). No intraday trading. The canonical paper book is the
+  **All Weather Core mandate's** book; the credit mandate's screen and
+  powder posture are sealed in the decision but not yet routed to an OMS.
 - **P&L is booked close-over-prior-close** — the full economic day including
   the overnight gap. Open→close is journaled alongside for the session tape.
   Attribution is per asset: the mark move on the position held *into* the
