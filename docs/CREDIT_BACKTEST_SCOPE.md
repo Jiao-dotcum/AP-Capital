@@ -1,64 +1,54 @@
 # Scope: a fully rigorous AP Cycle Credit backtest
 
-**Status: not built.** `src/engine/mandateBacktest.js` ships a v1 estimate
-(below) that is meaningfully more real than an ETF-ticker proxy but still
-short of what "backtest the actual credit desk" should mean. This document
-scopes the difference.
+**Status: items 1, 2, 3, and 5 SHIPPED** in `src/engine/creditBacktest.js`
+(owner approved the build). Item 4 — validation against real historical
+data — remains open and is the honest gap between "a rigorous model" and
+"a validated one."
 
-## What v1 does (shipped)
+## What is built (v2, the full-rigor walk)
 
-Walks the real `screenPerforming(cycle)` engine month by month over the same
-22-year seeded path as everything else: at each step, screens the ten
-structural issuers against that month's cycle state, sizes the performing
-sleeve by margin-of-safety weight exactly as the live desk would, and prices
-carry minus duration-adjusted mark-to-market off each issuer's *screened*
-market spread. The distressed sleeve prices off the same CLO BB Debt proxy
-formula `proxyVehicles()` already quotes (1.55× HY OAS), gated by the same
-`deployAuthorized` trigger logic the live desk uses, and sits in cash
-otherwise. The credit-mandate blend uses `creditWeightsFor(dial)`, lagged one
-period exactly as the legacy backtest's `pending` structure — no lookahead.
+1. **Time-varying issuer fundamentals** ✅ — each issuer's `lev`/`cov`/`mult`
+   follow monthly mean-reverting, cycle-linked paths (leverage creeps up
+   when `lenderEase` says money is chasing deals; coverage erodes and EV
+   multiples compress as spread stress rises), drawn from that issuer's own
+   seeded `mulberry32` stream per Invariant 3.
+2. **Ratings migration & default, realized** ✅ — the `TRANSITION` matrix
+   monthly-ized (`p_m = 1 − (1−p)^(1/12)`) and actually rolled per issuer
+   per month. Default intensity is modulated by cycle stress
+   (`0.6 + 1.8·s`) and by the issuer's *current* Merton distance-to-default
+   (`exp(1.1·(2.2 − DtD))`, clamped [0.35, 3.5]) so the screen's gates face
+   an adversarial test. A defaulted issuer realizes `(recovery − price)/price`
+   on the held weight, then reorganizes to its snapshot balance sheet.
+3. **A real position ledger** ✅ — the book holds last screen's weights into
+   each month: carry (rf + spread accrual) + price mark-to-market off the
+   screen's own price series, realized default losses, and 25bp one-way
+   trading cost on turnover (HY cash round trip ≈ 50bp, stylized).
+4. **Historical validation** ❌ OPEN — the synthetic issuer paths are
+   calibrated to agency through-the-cycle rates but have not been validated
+   against real historical HY spread/default behavior by rating bucket
+   (FRED has the bucket-level OAS series). Until that's done this is a
+   model of a model — every number it produces is labeled as such.
+5. **verify.mjs checks** ✅ — determinism, purity, no-NaN, defaults > 0
+   (a 22-year HY path with zero defaults means the engine is broken; that
+   exact bug shipped once as a NaN DtD and the check now catches it), and
+   the discrimination floor: the rejected cohort's realized default rate
+   must be ≥ the held book's. Canonical seed: held 1.2%/yr vs rejected
+   11.1%/yr; the inequality held on 20/20 test seeds.
 
-**The gap**: each issuer's structural inputs (`lev`, `cov`, `mult`, `av`,
-`recovery`) are a fixed snapshot. `screenPerforming` re-derives distance-to-
-default and the model-fair spread fresh each cycle print, but the *inputs*
-never evolve — Meridian Cable has the same leverage and coverage in year 1
-and year 22. Real issuers lever up in booms, delever in busts, and some of
-them actually default. None of that is in v1.
+## Duration & cost assumptions (source-checked July 2026)
 
-## What full rigor requires
+- HY effective duration has ranged ~3.0–4.5y over two decades (HYG ≈ 2.9y
+  today); performing-book MTM comes off the screen's own price series so no
+  duration constant is needed there anymore.
+- CLO BB debt is floating-rate: rate duration ≈ 0, **spread** duration used
+  4.5y (`DISTRESSED_SPREAD_DURATION`).
+- Trading cost 25bp one-way (`TRADE_COST_BP`).
 
-1. **Time-varying issuer fundamentals.** Each of the ten (or more) issuers
-   needs its own 22-year path for `lev`, `cov`, `mult`, `av` — plausibly
-   mean-reverting and macro-linked (leverage drifts up in easy-credit
-   regimes, down under refinancing pressure), drawn from **its own seeded
-   `mulberry32` stream** per Invariant 3 (new randomness, own generator —
-   never reuse the macro/cycle draw sequence).
-2. **Ratings migration, realized.** `credit.js` already has the one-year
-   transition matrix (`TRANSITION`, `migrationOf`) but nothing currently
-   *rolls the dice* — a real backtest needs each issuer to actually migrate
-   (or default) probabilistically each period, with its own seeded stream,
-   and a position ledger that realizes the loss (`1 − recovery/100` of
-   par) the period a default hits.
-3. **A real position ledger**, not a re-screened snapshot: entries, exits,
-   accrued carry between rebalances, transaction costs on turnover (the
-   Charter's discipline — nothing here is free to trade), and mark-to-market
-   between screens rather than only at the print.
-4. **Historical spread data, not synthetic.** The live path already has the
-   seam (`src/live/edgar.js`, SEC XBRL fundamentals) — a rigorous backtest
-   should eventually validate the synthetic issuer paths against real
-   historical HY-index spread behavior by rating bucket (FRED has this),
-   the same discipline `docs/BACKEND.md` already applies to the live feed.
-5. **Its own `verify.mjs` checks**: determinism (same seed ⇒ same defaults,
-   same realized losses), purity (bare Node), and a sanity floor — a desk
-   that rejects issuers below the margin-of-safety gate should show realized
-   defaults concentrated in whatever *did* clear the gate versus what didn't,
-   or the screen itself isn't measuring anything.
+## What item 4 requires, when it's picked up
 
-## Why this is its own project, not a v1.5 patch
-
-Items 1–2 need new modeling assumptions the owner should approve explicitly
-(how fast does leverage drift? what triggers a downgrade beyond the fixed
-transition matrix?) before they're load-bearing evidence for a real product.
-Scope it as its own slice when the Cycle Credit mandate is ready to carry
-real capital — v1's honest proxy is enough to reason about *shape*
-(concentrated, patient, higher-vol) today.
+Pull FRED's bucket-level HY OAS history (BAMLH0A1HYBB / H0A2HYB / H0A3HYC)
+through the existing backend seam, then compare: synthetic spread levels and
+widening episodes by bucket vs realized; synthetic default incidence vs
+agency annual default studies; and the screen's price series vs real
+drawdown depth in 2008/2020 analogues. Divergences become recalibrations of
+the constants in `creditBacktest.js`, each called out in a commit.

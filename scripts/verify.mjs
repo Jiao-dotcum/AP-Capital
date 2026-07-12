@@ -94,6 +94,17 @@ check('mandate backtests deterministic', same(mbt1, runMandateBacktests()))
 check('mandate backtests: 264 months each, no NaN/Infinity',
   mbt1.core.length === 264 && mbt1.credit.length === 264 &&
   mbt1.core.every(Number.isFinite) && mbt1.credit.every(Number.isFinite))
+// The full-rigor credit walk must produce real credit events (a 22-year HY
+// path with zero defaults means the migration engine is broken — that
+// exact bug shipped once: a NaN distance-to-default silently zeroed the
+// default column), and the screen must show discrimination: names it
+// REJECTED should default more often than names it HELD, or the gates
+// measure nothing.
+const dg = mbt1.creditDiag
+check('credit walk realizes defaults', dg.defaults > 0, `${dg.defaults} defaults, ${dg.migrations} migrations`)
+check('screen discriminates: rejected default rate ≥ held',
+  dg.rejectedDefaults / dg.rejectedMonths >= dg.heldDefaults / dg.heldMonths,
+  `held ${(dg.heldDefaults / dg.heldMonths * 1200).toFixed(1)}%/yr vs rejected ${(dg.rejectedDefaults / dg.rejectedMonths * 1200).toFixed(1)}%/yr`)
 
 const disclaimers = execSync(`grep -ri "not investment advice" ${join(ROOT, 'src')} | wc -l`).toString().trim()
 check('disclaimers present (≥2)', Number(disclaimers) >= 2, `${disclaimers} found`)

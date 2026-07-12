@@ -109,11 +109,20 @@ function. Never advance the world any other way.
     the lookback slider.
   - `mandateBacktest.js` — standalone return tracks for each mandate, one
     seeded walk producing both series: Core from the real `buildRiskReport`
-    engine (fixed weights, no proxy), Credit from the real `screenPerforming`
-    engine walked monthly (carry minus duration mark-to-market on the actual
-    margin-of-safety book, gated by the same deploy triggers) — a v1 estimate
-    per `docs/CREDIT_BACKTEST_SCOPE.md`, since issuer fundamentals are a
-    fixed snapshot re-screened each print, not a 22-year issuer history.
+    engine (fixed weights, no proxy), Credit from the full-rigor walk below,
+    blended by `creditWeightsFor(dial)` lagged one period, distressed sleeve
+    on the CLO BB proxy gated by the same deploy triggers.
+  - `creditBacktest.js` — the full-rigor credit walk
+    (`docs/CREDIT_BACKTEST_SCOPE.md`): issuer fundamentals evolve monthly on
+    their own per-issuer mulberry32 streams (Invariant 3), ratings actually
+    migrate and default through the monthly-ized `TRANSITION` matrix
+    (default intensity modulated by cycle stress AND current
+    distance-to-default, so the screen's gates face an adversarial test),
+    and a position ledger realizes carry, price MTM, default losses, and
+    25bp one-way turnover costs. Verify enforces defaults > 0 (a NaN DtD
+    once silently zeroed the default column) and the discrimination floor:
+    rejected names must default more often than held names. Synthetic paths
+    calibrated but NOT yet validated against historical data — scope §4.
   - `oms.js` — paper OMS: $1M notional, 4bp slippage, targets clipped to
     caps at planning, `preTrade` compliance veto as backstop, ruin-breach
     halts buys (sells always clear), NAV/blotter persisted to localStorage.

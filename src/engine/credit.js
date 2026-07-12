@@ -118,13 +118,15 @@ function fairSpreadOf(issuer, stressVol) {
 
 // Second-level thinking, mechanized as consensus divergence: model-fair
 // spread vs what the market prices. Alpha is only permitted where the model
-// disagrees AND can say why the consensus is wrong.
-export function screenPerforming(cycle) {
+// disagrees AND can say why the consensus is wrong. `issuers` defaults to
+// the static snapshot; the mandate backtest passes EVOLVED issuer states
+// (time-varying lev/cov/mult, migrated ratings) through the same screen.
+export function screenPerforming(cycle, issuers = ISSUERS) {
   // Cycle stress raises asset volatility (wider PDs) and, separately, the
   // market's demanded spread.
   const stressVol = clamp(0.72 + (cycle.hySpread / CYCLE0.hySpread) * 0.4, 0.6, 2.2)
   const scale = cycle.hySpread / CYCLE0.hySpread
-  const rows = ISSUERS.map((a) => {
+  const rows = issuers.map((a) => {
     const { dd, pd, lgd, el, fairSpread } = fairSpreadOf(a, stressVol)
     // Model-fair spread = expected-loss + premium, mildly cycle-scaled.
     const modelSpread = Math.round(fairSpread * (0.6 + 0.4 * scale))

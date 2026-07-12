@@ -599,10 +599,10 @@ export default function App() {
           <MandateTrack
             id="credit"
             title="AP Cycle Credit — Standalone Track"
-            engine="Real screen, v1"
+            engine="Issuer histories · migration · defaults"
             series={mandateBT.credit}
             accent="var(--terracotta)"
-            note="The real credit-screening engine, walked monthly — carry minus duration mark-to-market on the actual margin-of-safety book. Issuer fundamentals are a fixed snapshot re-screened each print, not a 22-year issuer history; scope for the fully rigorous version is in docs/CREDIT_BACKTEST_SCOPE.md."
+            note={`The real credit screen walked over evolving issuers: fundamentals drift with the cycle, ratings migrate, and defaults realize their losses through a position ledger with trading costs. This path: ${mandateBT.creditDiag.defaults} defaults — the held book suffered ${(mandateBT.creditDiag.heldDefaults / mandateBT.creditDiag.heldMonths * 1200).toFixed(1)}%/yr against ${(mandateBT.creditDiag.rejectedDefaults / mandateBT.creditDiag.rejectedMonths * 1200).toFixed(1)}%/yr among names the gates rejected. Synthetic issuer paths, calibrated but not yet validated against historical spread data (docs/CREDIT_BACKTEST_SCOPE.md).`}
           />
         </div>
       </section>
