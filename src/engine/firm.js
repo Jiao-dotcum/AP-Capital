@@ -1,6 +1,7 @@
 import { secondLevelThesis } from './credit.js'
 import { regimeOf, RUIN_CEILING } from './machine.js'
-import { SLEEVES } from './cycle.js'
+import { SLEEVES, CORE_SLEEVES } from './cycle.js'
+import { CORE_GROSS } from './risk.js'
 import { runBacktest } from './backtest.js'
 
 // ————— The firm as an agent hierarchy —————
@@ -21,8 +22,9 @@ export const LAYERS = [
     artifact: 'The error log', check: 'Concentration caps and the ruin ceiling, enforced at the order gate.' },
   { id: 'L5', role: 'Investment Committee — Debate Agents', duty: 'Three deliberately different priors argue each proposal; believability-weighted plus risk non-veto.',
     artifact: 'The debate minutes', check: 'Each prior votes; votes weighted by past hit rate.' },
-  { id: 'L6', role: 'Co-CEOs — Panossian & O’Leary Agents', duty: 'Set desk strategy and the dial; joint sign-off on allocation shifts > 5pp. You ratify.',
-    artifact: 'The dial & allocation', check: 'Joint sign-off above a 5pp sleeve move; the dial posture call.' },
+  { id: 'L6', role: 'Co-CEOs — Panossian & O’Leary (Credit) · Bar Dea (Core)',
+    duty: 'Panossian & O’Leary set Cycle Credit desk strategy and the dial; joint sign-off on credit-sleeve shifts > 5pp. Bar Dea holds standing ratification of All Weather Core’s fixed structure — sign-off activates only if a change to it is ever proposed. You ratify the dial.',
+    artifact: 'The dial & the Core’s fixed structure', check: 'Joint sign-off above a 5pp credit-sleeve move; the dial posture call; any proposed change to Core gross or sleeves.' },
   { id: 'L7', role: 'The Memo — Marks Agent', duty: 'Quarterly synthesis: where we stand, what the crowd believes, where we differ.',
     artifact: 'The quarterly memo', check: 'Every claim logged against realized base rates; divergence triggers a rewrite.' },
 ]
@@ -96,14 +98,18 @@ export function buildFeed(ctx) {
   )
 
   // L1b — the alternatives analyst covers the volatility & merger-arb sleeves,
-  // whose net stance the dial directs: short vol in froth, long vol in despair.
-  const volStance =
-    dial < 35
-      ? 'short vol — sell premium and hold merger-arb carry; froth pays the seller'
-      : dial >= 65
-        ? 'long vol — own convexity into the despair, where the crash pays the hedge'
-        : 'vol-neutral — arb carry with a convexity tail, waiting for the dial to commit'
-  push('L1', 'Analyst · Volatility & Arb', `Alternatives sleeves at dial ${dial}: ${volStance}.`)
+  // held inside All Weather Core. THE DECOUPLING: their weight is fixed by
+  // season risk parity from the 22-year covariance, not by the dial — VIX
+  // (bG −0.35) is the crash hedge in the Falling-Growth season, merger-arb
+  // (bG +0.25) is the carry leg in Rising-Growth. Today's reading moves
+  // whose beta is earning its keep, never their target weight.
+  const growthTilt =
+    reading.g <= -0.3
+      ? 'growth surprised negative — the crash hedge (VIX) is earning its keep today'
+      : reading.g >= 0.3
+        ? 'growth surprised positive — the carry leg (merger-arb) is earning its keep today'
+        : 'growth sits near consensus — neither leg is doing much work today'
+  push('L1', 'Analyst · Volatility & Arb', `All Weather Core, alternatives sleeves: ${growthTilt}. Weight is fixed by season risk parity, not the dial.`)
 
   // L2 — senior analyst writes the memo on the flagged name
   push(
@@ -169,19 +175,32 @@ export function buildFeed(ctx) {
     passed ? 'pass' : 'veto',
   )
 
-  // L6 — Co-CEO sign-off on big allocation moves
-  const maxShift = Math.max(...weights.map((w, k) => Math.abs(w - prevWeights[k])))
-  const shiftIdx = weights.findIndex((w, k) => Math.abs(w - prevWeights[k]) === maxShift)
+  // L6 — Co-CEO sign-off, split by mandate. Panossian & O'Leary own the
+  // credit mandate's dial and sleeve shifts (indices 2-4: performing,
+  // distressed, powder); Bar Dea holds standing ratification of the Core's
+  // fixed structure (indices 0-1), which never drifts by construction — his
+  // sign-off is a structural fact each release, not a per-release forecast,
+  // so (unlike Panossian & O'Leary) he carries no separate believability
+  // score in firmStandings.
+  const creditIdx = [2, 3, 4]
+  const creditShift = creditIdx.map((k) => Math.abs(weights[k] - prevWeights[k]))
+  const maxShift = Math.max(...creditShift)
+  const shiftIdx = creditIdx[creditShift.indexOf(maxShift)]
   if (maxShift > 5) {
     push(
       'L6',
-      'Co-CEOs · Joint Sign-Off',
+      'Co-CEOs · Panossian & O’Leary',
       `${SLEEVES[shiftIdx].name} moves ${maxShift}pp — above the 5pp threshold. Panossian and O’Leary jointly sign; the dial stands at ${dial}. Recommendation forwarded for human ratification.`,
       'pass',
     )
   } else {
-    push('L6', 'Co-CEOs', `Allocation drift ≤ 5pp — no joint sign-off required. Dial holds at ${dial}.`)
+    push('L6', 'Co-CEOs · Panossian & O’Leary', `Credit-sleeve drift ≤ 5pp — no joint sign-off required. Dial holds at ${dial}.`)
   }
+  push(
+    'L6',
+    'Co-CEO · Bar Dea',
+    `All Weather Core holds its fixed structure — ${CORE_SLEEVES[0]}% beta / ${CORE_SLEEVES[1]}% Pure Alpha at ${CORE_GROSS.toFixed(1)}× gross, no dial input. Standing ratification stands; sign-off activates only if a change to the Core's structure is proposed.`,
+  )
 
   return entries.reverse() // newest first when prepended
 }

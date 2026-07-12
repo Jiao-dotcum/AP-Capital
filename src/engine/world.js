@@ -5,7 +5,7 @@ import {
   proxyScores,
   dialFrom,
   settleDial,
-  weightsFor,
+  houseView,
   triggersFrom,
   deployAuthorized,
 } from './cycle.js'
@@ -34,7 +34,11 @@ export function seedWorld() {
     cycle: CYCLE0,
     cycleHist: [],
     autoDial: dial0,
-    weights: weightsFor(dial0),
+    // houseView, not the legacy weightsFor: the Firm's own feed (buildFeed,
+    // below) must see the decoupled allocation — Core fixed, credit
+    // dial-scoped — or its L5/L6 narrative describes Core sleeve moves that
+    // can no longer happen in the traded book.
+    weights: houseView(dial0),
     releaseN: 0,
     feed: [],
     vetoCount: 0,
@@ -51,7 +55,7 @@ export function advanceWorld(rng, world, reading, liveSpread = null) {
   // the composite has genuinely moved.
   const autoDial = settleDial(world.autoDial, dialFrom(proxyScores(cycle, cycleHist)))
   const dial = world.dialOverride ?? autoDial
-  const weights = weightsFor(dial)
+  const weights = houseView(dial) // Core fixed, credit dial-scoped — see seedWorld
   const screen = screenPerforming(cycle)
   const triggers = triggersFrom(cycle)
   const ruin = riskOfRuin(reading)
