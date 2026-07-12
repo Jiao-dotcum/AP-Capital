@@ -5,11 +5,19 @@ const money = (n) => (n < 0 ? '−$' : '$') + Math.abs(Math.round(n)).toLocaleSt
 const signed = (n) => (n >= 0 ? '+' : '−') + '$' + Math.abs(Math.round(n)).toLocaleString()
 const GRADE_COLOR = { pos: 'var(--laurel)', '': 'var(--ink)', muted: 'var(--bronze)', neg: 'var(--terracotta)' }
 
+const day = (iso) => {
+  try {
+    return new Date(iso).toISOString().slice(0, 10)
+  } catch {
+    return String(iso).slice(0, 10)
+  }
+}
+
 // The Execution Desk: a paper-trading OMS. Own notional capital, listed
 // proxies, simulated fills — the Charter forbids real-money and outside-money
 // automation. Pre-trade compliance vetoes an order exactly as the Layer-4 risk
 // agent vetoes a trade; the blotter is the audit trail, persisted in-browser.
-export default function Execution({ book, onRebalance, onReset, canTrade, ruinBreached, grades, livePriceCount = 0 }) {
+export default function Execution({ book, onRebalance, onReset, canTrade, ruinBreached, grades, livePriceCount = 0, journal = null }) {
   const nav = bookNav(book)
   const positions = positionsLedger(book)
   const gross = positions.reduce((s, p) => s + Math.abs(p.mv), 0)
@@ -161,6 +169,53 @@ export default function Execution({ book, onRebalance, onReset, canTrade, ruinBr
           )}
         </div>
       </div>
+
+      {journal && journal.length > 0 && (
+        <div className="panel panel--quiet" style={{ marginTop: 'var(--space-3)' }}>
+          <h3 className="panel__title">The Daily Journal — Canonical Book (Server)</h3>
+          <p className="footnote" style={{ marginTop: '0.3rem' }}>
+            Each trading day the scheduled engine run books the day&apos;s P&amp;L, journals every
+            transaction with the reason it was made, and seals the risk statement into the hash
+            chain. Simulated/paper figures — this is the decision audit trail, not a track record.
+          </p>
+          {journal.slice(0, 5).map((e) => (
+            <div key={e.hash} style={{ borderTop: '1px solid var(--hairline, #ccc)', paddingTop: '0.6rem', marginTop: '0.6rem' }}>
+              <p className="gear__note" style={{ margin: 0 }}>
+                <b className="mono">{day(e.knownAt)}</b> · run #{e.seq} · NAV {money(e.nav)}
+                {e.pnl && (
+                  <span className={e.pnl.dayPnl >= 0 ? 'pos' : 'neg'}> · day P&amp;L {signed(e.pnl.dayPnl)}</span>
+                )}
+                {e.pnl && <> · slippage {signed(e.pnl.tradingCost)}</>}
+                {' '}· dial {e.decision.dial} ({e.decision.posture}
+                {e.decision.dialOverride != null ? ', human-ratified' : ''}) ·{' '}
+                <span className="mono" title={e.hash}>seal {e.hash.slice(0, 10)}…</span>
+              </p>
+              {e.risk && (
+                <p className="gear__note" style={{ margin: '0.25rem 0 0' }}>
+                  Risk: vol {e.risk.portfolioVolAnnualPct}%/yr · CVaR95 {money(e.risk.cvar95Dollar)}/mo ·
+                  gross {(e.risk.grossTarget * 100).toFixed(0)}% (ceiling {e.risk.grossCeiling}×) ·
+                  season risk {e.risk.seasons.map((s) => s.riskPct).join('/')} · drawdown{' '}
+                  {e.risk.drawdown.currentPct}%{e.risk.drawdown.deriskGross < 1 ? ` — de-risk to ${e.risk.drawdown.deriskGross * 100}% gross` : ''}
+                </p>
+              )}
+              {e.trades?.length > 0 ? (
+                <ul className="gear__note" style={{ margin: '0.25rem 0 0', paddingLeft: '1.1rem' }}>
+                  {e.trades.map((t) => (
+                    <li key={t.seq} style={t.status === 'VETOED' ? { color: 'var(--limestone)' } : undefined}>
+                      <span className={`mono ${t.side === 'BUY' ? 'pos' : 'neg'}`}>{t.side}</span>{' '}
+                      {Math.round(t.qty).toLocaleString()} {t.name} @ {t.fillPx ?? t.price?.toFixed?.(2)}
+                      {t.status === 'VETOED' ? ` — VETOED (${t.reason})` : ''}
+                      {t.rationale && <div className="proxy__bounds">{t.rationale}</div>}
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="gear__note" style={{ margin: '0.25rem 0 0' }}>No trades — book already at target.</p>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   )
 }

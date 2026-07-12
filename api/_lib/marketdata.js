@@ -11,7 +11,10 @@ export const marketConfigured = () =>
   Boolean(process.env.ALPACA_KEY_ID && process.env.ALPACA_SECRET_KEY)
 
 // Pure: Alpaca multi-symbol daily-bars JSON → { TICKER: {close, prevClose,
-// change, asof} }. Uses the last two daily bars per symbol for the day change.
+// open, change, intraday, asof} }. `change` is close-over-prior-close — the
+// full economic day including the overnight gap, and what the book marks on.
+// `intraday` is open→close within the session, journaled alongside so the
+// day's tape shows both. Uses the last two daily bars per symbol.
 export function barsToPrices(json, asOfFallback) {
   const bars = json?.bars || {}
   const out = {}
@@ -20,12 +23,15 @@ export function barsToPrices(json, asOfFallback) {
     const last = arr[arr.length - 1]
     const prev = arr.length > 1 ? arr[arr.length - 2] : null
     const close = last.c
+    const open = last.o
     const prevClose = prev ? prev.c : last.o
     if (!Number.isFinite(close) || !Number.isFinite(prevClose) || prevClose === 0) continue
     out[sym] = {
       close: +close.toFixed(2),
       prevClose: +prevClose.toFixed(2),
+      open: Number.isFinite(open) ? +open.toFixed(2) : null,
       change: +((close / prevClose - 1) * 100).toFixed(2),
+      intraday: Number.isFinite(open) && open !== 0 ? +((close / open - 1) * 100).toFixed(2) : null,
       asof: last.t || asOfFallback,
     }
   }

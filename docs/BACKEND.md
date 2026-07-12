@@ -188,6 +188,27 @@ Overrides are append-only rows; each canonical run records the override it
 obeyed inside its hash-sealed decision (`decision.dialOverride`), and a
 changed override counts as a new decision even when macro data hasn't moved.
 
+### The daily journal (Phase 2b — shipped, zero-config)
+
+Each trading day's run now seals three more things into its chained record:
+
+- **P&L, attributed**: `pnl` — NAV start→end, day P&L split from trading
+  cost (slippage) and cash yield, and per-asset rows (dollars allocated,
+  weight, cap headroom, the day's mark move and P&L on the position held
+  into the day). Booked close-over-prior-close; open→close is carried in
+  the price rows for the session tape.
+- **Every trade's reason**: each order carries a deterministic `rationale`
+  (strategy, dial + posture + automatic/human-ratified, regime, current→
+  target weight, unified grade, binding caps) written at planning time.
+- **The risk statement**: `risk` — annualized vol, CVaR 95/99 (% and $),
+  four-season risk shares, gross vs. ceiling, drawdown vs. the de-risk
+  schedule, and the named crisis replays run on that day's weights.
+
+The cron moved to **21:30 UTC weekdays** (after US close) so a run books the
+trading day it closes. `GET /api/journal?limit=30` returns the entries
+newest-first; the dashboard's Execution Desk renders them automatically once
+runs exist. The standing rules live in `docs/RISK_POLICY.md`.
+
 ### Auditing and anchoring the chain
 
 `GET /api/chain` recomputes every hash link server-side and reports

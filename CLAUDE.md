@@ -136,7 +136,12 @@ function. Never advance the world any other way.
   client's `deriveFundamentals` verbatim), `override.js` (the Charter's human
   dial ratification, owner-only, append-only, recorded inside each run's
   sealed decision), `chain.js` (recomputes the whole hash chain;
-  anchor its head externally to make tamper-evident into tamper-proof).
+  anchor its head externally to make tamper-evident into tamper-proof),
+  `journal.js` (the daily journal read endpoint). Each run also seals `pnl`
+  (day P&L attributed per asset, slippage split out) and `risk` (CVaR,
+  season shares, drawdown rung, crisis replays) and gives every order a
+  deterministic `rationale` written at planning time — the standing rules
+  live in `docs/RISK_POLICY.md`; cron fires 21:30 UTC weekdays (post-close).
 - `src/components/` — one component per section + `chrome.jsx` +
   `Tearsheet.jsx` (print-only investor page; disclaimer language is
   load-bearing — never weaken it).

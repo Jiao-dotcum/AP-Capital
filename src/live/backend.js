@@ -27,6 +27,21 @@ export async function fetchBackendState() {
   }
 }
 
+// The daily journal the canonical engine writes: newest-first entries of
+// { seq, knownAt, nav, pnl, decision, trades (with rationale), risk, hash }.
+// Null before the backend is configured or the first run lands.
+export async function fetchJournal(limit = 10) {
+  try {
+    const res = await fetch(`/api/journal?limit=${limit}`, { headers: { accept: 'application/json' } })
+    if (!res.ok) return null
+    const j = await res.json()
+    if (!j.configured || !j.entries?.length) return null
+    return j.entries
+  } catch {
+    return null
+  }
+}
+
 // A short, human "as of" stamp for the status line.
 export function asOf(iso) {
   try {

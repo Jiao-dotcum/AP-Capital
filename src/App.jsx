@@ -32,7 +32,7 @@ import { fetchLiveMacro } from './live/fetchLive.js'
 import { fetchFredMacro } from './live/fred.js'
 import { conveneFirm } from './live/convene.js'
 import { fetchEdgarFundamentals, staticBenchmarks, mergeBackendFundamentals } from './live/edgar.js'
-import { fetchBackendState, asOf } from './live/backend.js'
+import { fetchBackendState, fetchJournal, asOf } from './live/backend.js'
 import { sleeveReturns } from './engine/proxies.js'
 import { emptyPit, pitAppend, serializePit, deserializePit } from './engine/pit.js'
 import { Plate, PLATES } from './components/art.jsx'
@@ -98,6 +98,9 @@ export default function App() {
   // feed. Null until the backend has fetched at least one tick — the book
   // marks off the factor model until then.
   const [livePrices, setLivePrices] = useState(null)
+  // The canonical book's daily journal (P&L, trades with reasons, sealed risk
+  // statement) — null until the backend's first engine run lands.
+  const [journal, setJournal] = useState(null)
   // The paper-trading book persists across sessions as the audit trail.
   const [book, setBook] = useState(() => {
     try {
@@ -294,6 +297,9 @@ export default function App() {
   // simulated feed if the backend isn't configured yet.
   useEffect(() => {
     let cancelled = false
+    fetchJournal(10).then((entries) => {
+      if (!cancelled && entries) setJournal(entries)
+    })
     fetchBackendState().then((s) => {
       if (cancelled || !s) return
       if (s.prices) setLivePrices(s.prices)
@@ -567,6 +573,7 @@ export default function App() {
           ruinBreached={breached}
           grades={grades}
           livePriceCount={livePrices ? Object.keys(sleeveReturns(livePrices) ?? {}).length : 0}
+          journal={journal}
         />
       </section>
 

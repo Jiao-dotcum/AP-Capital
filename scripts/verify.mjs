@@ -79,6 +79,11 @@ check('canonical run rebalance (marks off par) zero vetoes', run1.decision.vetoe
   `${run1.decision.vetoed}/${run2.decision.vetoed} vetoed`)
 check('hash chain verifies; tampered NAV breaks it',
   verifyChain([run1, run2]).ok && !verifyChain([{ ...run1, nav: run1.nav + 1 }, run2]).ok)
+check('every order journaled with a sealed rationale', run1.orders.every((o) => o.rationale && o.grade?.letter))
+check('P&L identity: start + day + cost = end',
+  Math.abs(run1.pnl.navStart + run1.pnl.dayPnl + run1.pnl.tradingCost - run1.pnl.navEnd) < 0.02)
+check('risk statement sealed (CVaR, seasons, drawdown)',
+  run1.risk.cvar95Dollar < 0 && run1.risk.seasons.length === 4 && 'currentPct' in run1.risk.drawdown)
 
 const disclaimers = execSync(`grep -ri "not investment advice" ${join(ROOT, 'src')} | wc -l`).toString().trim()
 check('disclaimers present (≥2)', Number(disclaimers) >= 2, `${disclaimers} found`)

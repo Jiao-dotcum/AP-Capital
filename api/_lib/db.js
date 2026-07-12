@@ -64,6 +64,8 @@ const SCHEMA = `
   );
   CREATE UNIQUE INDEX IF NOT EXISTS market_prices_dedupe_idx ON market_prices (ticker, as_of);
   CREATE INDEX IF NOT EXISTS market_prices_ticker_idx ON market_prices (ticker, created_at DESC);
+  ALTER TABLE market_prices ADD COLUMN IF NOT EXISTS open DOUBLE PRECISION;
+  ALTER TABLE market_prices ADD COLUMN IF NOT EXISTS intraday_pct DOUBLE PRECISION;
 
   CREATE TABLE IF NOT EXISTS engine_runs (
     id         BIGSERIAL PRIMARY KEY,
@@ -88,6 +90,8 @@ const SCHEMA = `
   -- chain; the error surfaces as engineError in that run's response.
   CREATE UNIQUE INDEX IF NOT EXISTS engine_runs_parent_idx
     ON engine_runs ((COALESCE(prev_hash, 'GENESIS')));
+  ALTER TABLE engine_runs ADD COLUMN IF NOT EXISTS pnl JSONB;
+  ALTER TABLE engine_runs ADD COLUMN IF NOT EXISTS risk JSONB;
 
   CREATE TABLE IF NOT EXISTS fundamentals (
     id         BIGSERIAL PRIMARY KEY,
@@ -174,10 +178,10 @@ export async function insertPrices(pricesByTicker) {
   let inserted = 0
   for (const [ticker, px] of Object.entries(pricesByTicker)) {
     const res = await p.query(
-      `INSERT INTO market_prices (ticker, close, prev_close, change_pct, as_of)
-       VALUES ($1,$2,$3,$4,$5)
+      `INSERT INTO market_prices (ticker, close, prev_close, change_pct, as_of, open, intraday_pct)
+       VALUES ($1,$2,$3,$4,$5,$6,$7)
        ON CONFLICT (ticker, as_of) DO NOTHING`,
-      [ticker, px.close, px.prevClose, px.change, px.asof],
+      [ticker, px.close, px.prevClose, px.change, px.asof, px.open ?? null, px.intraday ?? null],
     )
     inserted += res.rowCount
   }
@@ -191,10 +195,10 @@ export async function insertEngineRun(run) {
   const p = pool()
   if (!p || !run) return false
   const res = await p.query(
-    `INSERT INTO engine_runs (seq, known_at, reading, hy_oas_bp, decision, orders, nav, world, book, prev_hash, hash)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+    `INSERT INTO engine_runs (seq, known_at, reading, hy_oas_bp, decision, orders, nav, pnl, risk, world, book, prev_hash, hash)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
      ON CONFLICT (hash) DO NOTHING`,
-    [run.seq, run.knownAt, run.reading, run.hyOasBp ?? null, run.decision, JSON.stringify(run.orders), run.nav, run.world, run.book, run.prevHash, run.hash],
+    [run.seq, run.knownAt, run.reading, run.hyOasBp ?? null, run.decision, JSON.stringify(run.orders), run.nav, run.pnl ?? null, run.risk ?? null, run.world, run.book, run.prevHash, run.hash],
   )
   return res.rowCount > 0
 }
@@ -204,7 +208,7 @@ export async function getLatestRun() {
   const p = pool()
   if (!p) return null
   const { rows } = await p.query(
-    `SELECT seq, known_at, reading, hy_oas_bp, decision, orders, nav, world, book, prev_hash, hash
+    `SELECT seq, known_at, reading, hy_oas_bp, decision, orders, nav, pnl, risk, world, book, prev_hash, hash
        FROM engine_runs ORDER BY seq DESC, created_at DESC LIMIT 1`,
   )
   if (!rows.length) return null
@@ -217,6 +221,8 @@ export async function getLatestRun() {
     decision: r.decision,
     orders: r.orders,
     nav: r.nav,
+    pnl: r.pnl ?? null,
+    risk: r.risk ?? null,
     world: r.world,
     book: r.book,
     prevHash: r.prev_hash,
@@ -230,12 +236,22 @@ export async function getLatestRunSummary() {
   const p = pool()
   if (!p) return null
   const { rows } = await p.query(
-    `SELECT seq, known_at, decision, orders, nav, prev_hash, hash
+    `SELECT seq, known_at, decision, orders, nav, pnl, risk, prev_hash, hash
        FROM engine_runs ORDER BY seq DESC, created_at DESC LIMIT 1`,
   )
   if (!rows.length) return null
   const r = rows[0]
-  return { seq: r.seq, knownAt: r.known_at, decision: r.decision, orders: r.orders, nav: r.nav, prevHash: r.prev_hash, hash: r.hash }
+  return {
+    seq: r.seq,
+    knownAt: r.known_at,
+    decision: r.decision,
+    orders: r.orders,
+    nav: r.nav,
+    pnl: r.pnl ?? null,
+    risk: r.risk ?? null,
+    prevHash: r.prev_hash,
+    hash: r.hash,
+  }
 }
 
 // Append issuer fundamentals point-in-time: a restated 10-K lands as a new
@@ -308,7 +324,7 @@ export async function getChainRuns() {
   const p = pool()
   if (!p) return null
   const { rows } = await p.query(
-    `SELECT seq, known_at, reading, hy_oas_bp, decision, orders, nav, prev_hash, hash
+    `SELECT seq, known_at, reading, hy_oas_bp, decision, orders, nav, pnl, risk, prev_hash, hash
        FROM engine_runs ORDER BY seq ASC, created_at ASC`,
   )
   // known_at comes back as a JS Date; the chain was hashed over the ISO
@@ -321,6 +337,8 @@ export async function getChainRuns() {
     decision: r.decision,
     orders: r.orders,
     nav: r.nav,
+    pnl: r.pnl ?? null,
+    risk: r.risk ?? null,
     prevHash: r.prev_hash,
     hash: r.hash,
   }))
@@ -333,11 +351,14 @@ export async function getLatestPrices() {
   const p = pool()
   if (!p) return null
   const { rows } = await p.query(
-    `SELECT DISTINCT ON (ticker) ticker, close, prev_close, change_pct, as_of
+    `SELECT DISTINCT ON (ticker) ticker, close, prev_close, change_pct, as_of, open, intraday_pct
        FROM market_prices ORDER BY ticker, as_of DESC`,
   )
   if (!rows.length) return null
   return Object.fromEntries(
-    rows.map((r) => [r.ticker, { close: r.close, prevClose: r.prev_close, change: r.change_pct, asof: r.as_of }]),
+    rows.map((r) => [
+      r.ticker,
+      { close: r.close, prevClose: r.prev_close, change: r.change_pct, asof: r.as_of, open: r.open, intraday: r.intraday_pct },
+    ]),
   )
 }
