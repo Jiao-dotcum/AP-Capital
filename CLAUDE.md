@@ -107,6 +107,13 @@ function. Never advance the world any other way.
     per-principle/regime/dial hit rates; turnover with/without deadband;
     exposes the monthly return `series` and `windowStats(series, years)` for
     the lookback slider.
+  - `mandateBacktest.js` — standalone return tracks for each mandate, one
+    seeded walk producing both series: Core from the real `buildRiskReport`
+    engine (fixed weights, no proxy), Credit from the real `screenPerforming`
+    engine walked monthly (carry minus duration mark-to-market on the actual
+    margin-of-safety book, gated by the same deploy triggers) — a v1 estimate
+    per `docs/CREDIT_BACKTEST_SCOPE.md`, since issuer fundamentals are a
+    fixed snapshot re-screened each print, not a 22-year issuer history.
   - `oms.js` — paper OMS: $1M notional, 4bp slippage, targets clipped to
     caps at planning, `preTrade` compliance veto as backstop, ruin-breach
     halts buys (sells always clear), NAV/blotter persisted to localStorage.

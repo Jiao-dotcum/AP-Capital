@@ -38,6 +38,7 @@ const { UNIVERSE } = await eng('assets.js')
 const { gradeBook } = await eng('grades.js')
 const { bestIdeas } = await eng('origination.js')
 const { initBook, targetPositions, planOrders, execute } = await eng('oms.js')
+const { runMandateBacktests } = await eng('mandateBacktest.js')
 
 check('engine modules import in bare Node (purity)', true)
 
@@ -87,6 +88,12 @@ check('P&L identity: start + day + cost = end',
   Math.abs(run1.pnl.navStart + run1.pnl.dayPnl + run1.pnl.tradingCost - run1.pnl.navEnd) < 0.02)
 check('risk statement sealed (CVaR, seasons, drawdown)',
   run1.risk.cvar95Dollar < 0 && run1.risk.seasons.length === 4 && 'currentPct' in run1.risk.drawdown)
+
+const mbt1 = runMandateBacktests()
+check('mandate backtests deterministic', same(mbt1, runMandateBacktests()))
+check('mandate backtests: 264 months each, no NaN/Infinity',
+  mbt1.core.length === 264 && mbt1.credit.length === 264 &&
+  mbt1.core.every(Number.isFinite) && mbt1.credit.every(Number.isFinite))
 
 const disclaimers = execSync(`grep -ri "not investment advice" ${join(ROOT, 'src')} | wc -l`).toString().trim()
 check('disclaimers present (≥2)', Number(disclaimers) >= 2, `${disclaimers} found`)

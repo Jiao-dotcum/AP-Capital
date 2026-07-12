@@ -17,6 +17,7 @@ import { bestIdeas } from './engine/origination.js'
 import { scanCatalysts } from './engine/sourcing.js'
 import { memoFrom, quarterLabel } from './engine/firm.js'
 import { runBacktest } from './engine/backtest.js'
+import { runMandateBacktests } from './engine/mandateBacktest.js'
 import { gradeBook } from './engine/grades.js'
 import { buildRiskReport } from './engine/risk.js'
 import {
@@ -56,6 +57,7 @@ import Desks from './components/Desks.jsx'
 import Origination from './components/Origination.jsx'
 import Register from './components/Register.jsx'
 import Allocation from './components/Allocation.jsx'
+import MandateTrack from './components/MandateTrack.jsx'
 import MonteCarlo from './components/MonteCarlo.jsx'
 import Ledger from './components/Ledger.jsx'
 import Firm from './components/Firm.jsx'
@@ -139,6 +141,11 @@ export default function App() {
   const deploy = deployAuthorized(triggers)
   // The proving ground runs once — fixed seed, identical report every session.
   const baseRates = useMemo(() => runBacktest(), [])
+  // Standalone return tracks: each mandate's own engine, walked over the
+  // same 22-year seeded path — Core is the real production book, Credit is
+  // the real screen walked (see docs/CREDIT_BACKTEST_SCOPE.md for the gap
+  // to a fully rigorous version).
+  const mandateBT = useMemo(() => runMandateBacktests(), [])
   const templateMemo = useMemo(
     () =>
       memoFrom({
@@ -579,6 +586,25 @@ export default function App() {
           note="Two engines, two jurisdictions, one fixed split of capital. Bridgewater runs the Core at constant gross; Oaktree runs Credit through the dial; neither reaches into the other’s book. The wall is the design — the proving ground priced the old coupling and the firm declined to keep paying for it."
         />
         <Allocation dial={dial} houseW={houseW} creditW={creditW} />
+
+        <div className="grid-2" style={{ marginTop: 'var(--space-3)' }}>
+          <MandateTrack
+            id="core"
+            title="AP All Weather Core — Standalone Track"
+            engine="Real production engine"
+            series={mandateBT.core}
+            accent="var(--wedgwood)"
+            note="Fixed risk-parity weights (no dial input) applied to the actual UNIVERSE factor returns — this is the same code that runs live, not a proxy."
+          />
+          <MandateTrack
+            id="credit"
+            title="AP Cycle Credit — Standalone Track"
+            engine="Real screen, v1"
+            series={mandateBT.credit}
+            accent="var(--terracotta)"
+            note="The real credit-screening engine, walked monthly — carry minus duration mark-to-market on the actual margin-of-safety book. Issuer fundamentals are a fixed snapshot re-screened each print, not a 22-year issuer history; scope for the fully rigorous version is in docs/CREDIT_BACKTEST_SCOPE.md."
+          />
+        </div>
       </section>
 
       <ColumnDivider />
