@@ -155,7 +155,21 @@ export const latestAnnual = (facts, concepts) => latestAnnualObs(facts, concepts
 // EBITDA-proxy (operating income + D&A, falling back to operating income).
 // Then the same Merton → PD → expected-loss pipeline as the simulated desk.
 export function deriveFundamentals(issuer, facts) {
-  const opIncObs = latestAnnualObs(facts, ['OperatingIncomeLoss'])
+  let opIncObs = latestAnnualObs(facts, ['OperatingIncomeLoss'])
+  // Confirmed in production (2026-07-13, Occidental — SEC returned NoSuchKey
+  // for this exact CIK+concept): companies using a single-step income
+  // statement never present a distinct "operating income" subtotal at all,
+  // so the tag doesn't exist to fetch, not just to fall back from. Derive
+  // the same economic quantity safely — revenue and total costs/expenses
+  // are both conventionally positive with no sign ambiguity, unlike a net-
+  // interest fallback (deliberately not added; see below).
+  if (!opIncObs) {
+    const revObs = latestAnnualObs(facts, ['Revenues', 'RevenueFromContractWithCustomerExcludingAssessedTax'])
+    const costObs = latestAnnualObs(facts, ['CostsAndExpenses'])
+    if (revObs && costObs && revObs.end === costObs.end) {
+      opIncObs = { val: revObs.val - costObs.val, end: revObs.end }
+    }
+  }
   const opInc = opIncObs?.val ?? null
   const interest = latestAnnual(facts, ['InterestExpense', 'InterestExpenseDebt', 'InterestAndDebtExpense'])
   // LongTermDebtAndCapitalLeaseObligations added as a same-meaning fallback
