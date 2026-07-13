@@ -84,17 +84,29 @@ export function unleverAssetVol(equityValue, equityVolAnnual, debtFace, opts = {
   }
   let V = equityValue + debtFace
   let sigV = (equityVolAnnual * equityValue) / V
+  let Nd1 = 0, Nd2 = 0
   for (let k = 0; k < iters; k++) {
     const d1 = (Math.log(V / debtFace) + (rf + 0.5 * sigV * sigV) * horizon) / (sigV * Math.sqrt(horizon))
     const d2 = d1 - sigV * Math.sqrt(horizon)
-    const Nd1 = normCdf(d1)
-    const Nd2 = normCdf(d2)
+    Nd1 = normCdf(d1)
+    Nd2 = normCdf(d2)
     if (Nd1 < 1e-6) break
     V = (equityValue + debtFace * Math.exp(-rf * horizon) * Nd2) / Nd1
     sigV = (equityVolAnnual * equityValue) / (Nd1 * V)
   }
   if (!Number.isFinite(V) || !Number.isFinite(sigV) || sigV <= 0) {
     throw new Error('unleverAssetVol: did not converge to a plausible result')
+  }
+  // A finite number after 60 steps isn't the same as a solution — plug
+  // (V, σV) back into the equity-value equation and require it to actually
+  // reproduce the observed equity value within 2%. Fixed-point iteration
+  // can oscillate near a boundary (a deeply distressed firm, debt close to
+  // asset value) without ever technically diverging to Infinity/NaN; this
+  // is the check that catches THAT case instead of silently returning a
+  // number that only looks plausible.
+  const reconstructedEquity = V * Nd1 - debtFace * Math.exp(-rf * horizon) * Nd2
+  if (Math.abs(reconstructedEquity - equityValue) / equityValue > 0.02) {
+    throw new Error('unleverAssetVol: fixed-point iteration did not converge (equity value mismatch)')
   }
   return { assetValue: V, assetVol: clamp(sigV, 0.02, equityVolAnnual) }
 }
