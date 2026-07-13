@@ -96,6 +96,11 @@ export default async function handler(req, res) {
     try {
       const rows = await fetchFundamentals()
       out.issuersParsed = rows.filter((r) => !r.error).length
+      // A partial failure (some issuers, not all) previously vanished into a
+      // bare count — surface which name and why, or a silent per-issuer
+      // error is undiagnosable from the outside.
+      const failed = rows.filter((r) => r.error)
+      if (failed.length) out.edgarIssuerErrors = failed.map((r) => `${r.ticker}: ${r.error}`)
       if (configured()) out.fundamentalsStored = await insertFundamentals(rows)
     } catch (err) {
       out.ok = false
