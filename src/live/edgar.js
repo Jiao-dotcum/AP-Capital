@@ -158,7 +158,16 @@ export function deriveFundamentals(issuer, facts) {
   const opIncObs = latestAnnualObs(facts, ['OperatingIncomeLoss'])
   const opInc = opIncObs?.val ?? null
   const interest = latestAnnual(facts, ['InterestExpense', 'InterestExpenseDebt', 'InterestAndDebtExpense'])
-  const debt = latestAnnual(facts, ['LongTermDebtNoncurrent', 'LongTermDebt', 'DebtLongtermAndShorttermCombinedAmount', 'Liabilities'])
+  // LongTermDebtAndCapitalLeaseObligations added as a same-meaning fallback
+  // (Occidental hit "required XBRL facts missing" in production, 2026-07-13
+  // — not yet root-caused to a specific field without live XBRL access).
+  const debt = latestAnnual(facts, [
+    'LongTermDebtNoncurrent',
+    'LongTermDebt',
+    'DebtLongtermAndShorttermCombinedAmount',
+    'LongTermDebtAndCapitalLeaseObligations',
+    'Liabilities',
+  ])
   const da = latestAnnual(facts, ['DepreciationDepletionAndAmortization', 'DepreciationAmortizationAndAccretionNet', 'DepreciationAndAmortization']) || 0
   if (!Number.isFinite(opInc) || !Number.isFinite(interest) || !Number.isFinite(debt) || interest <= 0) {
     throw new Error('required XBRL facts missing')
