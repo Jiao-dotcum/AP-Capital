@@ -275,6 +275,15 @@ unless it follows the rule.
   into chat. → *Rule: secrets go directly into the Vercel env UI, never into
   chat, code, or commits. If one is exposed, rotate it immediately. Neon
   connection strings must be the pooled (`-pooler`) variant for serverless.*
+- **The array that wasn't JSON.** The machine's first live ingest stored 7
+  observations and sealed engine run #1, then died on `saveState` with
+  Postgres "invalid input syntax for type json": node-pg serializes a
+  TOP-LEVEL JS array as a Postgres array literal (`{...}`), not JSON, so the
+  JSONB `tape` column rejected it — while plain objects (`reading`,
+  `prints`) JSON-stringify correctly and sailed through. → *Rule: any
+  top-level array bound to a JSONB parameter is `JSON.stringify`'d
+  explicitly at the call site. The db-jsonb fixture test stubs `pg.Pool` and
+  asserts no write path passes a bare array — run it when touching db.js.*
 - **One factor, counted twice.** The Aggressiveness Dial (credit-cycle
   despair) originally scaled the WHOLE book's gross 0.5×–1.5× and slid
   capital between all five sleeves. But the credit cycle is computed FROM the

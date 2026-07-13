@@ -151,10 +151,15 @@ export async function insertObservations(records) {
 export async function saveState({ knownAt, reading, hyOasBp, prints, tape }) {
   const p = pool()
   if (!p) return
+  // node-pg serializes a TOP-LEVEL JS array as a Postgres array literal
+  // ({...}), not JSON — a JSONB column then rejects it with "invalid input
+  // syntax for type json". Plain objects are JSON.stringified correctly, but
+  // `tape` is an array, so it must be stringified explicitly. This failed in
+  // production on the machine's first live ingest.
   await p.query(
     `INSERT INTO machine_state (known_at, reading, hy_oas_bp, prints, tape)
      VALUES ($1,$2,$3,$4,$5)`,
-    [knownAt, reading, hyOasBp ?? null, prints ?? null, tape ?? null],
+    [knownAt, reading, hyOasBp ?? null, prints ?? null, tape ? JSON.stringify(tape) : null],
   )
 }
 
