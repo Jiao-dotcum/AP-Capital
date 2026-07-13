@@ -28,6 +28,15 @@ export const BENCHMARKS = [
   { ticker: 'M', cik: '0000794367', name: "Macy's", sector: 'Retail', rating: 'Ba1', recovery: 40, mult: 6.0, av: 0.42, cov: 3.0, lev: 2.8 },
   { ticker: 'FCX', cik: '0000831259', name: 'Freeport-McMoRan', sector: 'Materials', rating: 'Baa3', recovery: 50, mult: 7.5, av: 0.38, cov: 5.5, lev: 1.6 },
   { ticker: 'CYH', cik: '0001108109', name: 'Community Health Systems', sector: 'Healthcare', rating: 'B3', recovery: 35, mult: 7.0, av: 0.55, cov: 1.3, lev: 6.5 },
+  // The two below aren't generic high-yield filler — each maps to a live,
+  // named 2026 credit-cycle dislocation (the "confluence" Marks writes
+  // about in Mastering the Market Cycle: multiple pressures compounding on
+  // one name/sector at once), researched 2026-07-13. See
+  // docs/ENGINE_GUIDE.md §6 for the full writeup and the two real Oaktree
+  // Fund XII deals (Trinseo, Blue Racer Midstream) that do NOT fit this
+  // pipeline and why.
+  { ticker: 'PBI', cik: '0000078814', name: 'Pitney Bowes', sector: 'Technology', rating: 'B1', recovery: 45, mult: 6.5, av: 0.38, cov: 2.2, lev: 4.5 },
+  { ticker: 'CC', cik: '0001627223', name: 'Chemours', sector: 'Chemicals', rating: 'Ba3', recovery: 45, mult: 6.5, av: 0.45, cov: 2.8, lev: 3.8 },
 ]
 
 // Compute the derived row (DtD, PD, EL) from an issuer's cov/lev — used to

@@ -179,17 +179,44 @@ The roster (`BENCHMARKS`, `src/live/edgar.js`), as of 2026-07-13: Ford
 (Autos), Carnival (Lodging & Gaming), Occidental (Energy), American
 Airlines Group (Transport), Charter Communications (Communications),
 Macy's (Retail), Freeport-McMoRan (Materials), Community Health Systems
-(Healthcare) — 8 names spanning 8 sectors and a real quality range (FCX
-Baa3 near investment grade down through CYH B3, genuinely distressed:
-CYH's own numbers show a NEGATIVE distance-to-default even on the offline
-estimates, which the screen's hard gates should reject rather than
-silently include). CIKs confirmed against SEC EDGAR company search;
-ratings are Moody's corporate family ratings researched at the same
-date — metadata this pipeline does NOT refresh itself, so it goes stale
-between manual updates, same as `recovery` (still a sector-convention
-estimate, not filed or observed — the one item in §4's original TODO list
-still open). Adding a name is a one-line addition to `BENCHMARKS`; nothing
-else in the pipeline is issuer-count-specific.
+(Healthcare), Pitney Bowes (Technology), Chemours (Chemicals) — 10 names
+spanning 10 sectors and a real quality range (FCX Baa3 near investment
+grade down through CYH B3, genuinely distressed: CYH's own numbers show a
+NEGATIVE distance-to-default even on the offline estimates, which the
+screen's hard gates should reject rather than silently include). CIKs
+confirmed against SEC EDGAR company search; ratings are Moody's corporate
+family ratings researched at the same date — metadata this pipeline does
+NOT refresh itself, so it goes stale between manual updates, same as
+`recovery` (still a sector-convention estimate, not filed or observed —
+the one item in §4's original TODO list still open). Adding a name is a
+one-line addition to `BENCHMARKS`; nothing else in the pipeline is
+issuer-count-specific.
+
+Pitney Bowes and Chemours weren't picked as generic high-yield filler —
+each maps to a live, named 2026 credit-cycle dislocation researched the
+same date: Chemours (Ba3, negative outlook, affirmed Aug 2025) sits in a
+chemicals sector where downgrades outran upgrades >4:1 in Q1 2026 on
+demand weakness and commodity oversupply — a CYCLICAL trough, the kind
+Marks says to buy into, not a structural one. Pitney Bowes (B1 CFR, Ba2
+secured) sits in a software/tech complex whose spreads widened ~200bp
+market-wide on AI-displacement fear that hit "indiscriminate[ly]... across
+names with meaningfully different competitive profiles" (Bloomberg,
+2026) — literally the market failing to do the second-level thinking this
+screen is built to do — and PBI itself just extended $602M of credit
+facilities to 2031 (May 2026), a real lender underwriting a decade out,
+which is the kind of fact a spread-only view would miss.
+
+Two REAL 2026 Oaktree deals from its own $16B Fund XII do NOT fit this
+pipeline, and it's worth knowing why: **Trinseo** (chemicals, rescue
+financing) — its ordinary shares were suspended from NYSE trading in
+March 2026, so there is no live public equity to KMV-unlever; this is
+exactly the gap between a public-equity structural model and real
+distressed-debt investing, which prices off bank-debt levels and legal
+priority once a name is this far gone, not equity volatility. **Blue
+Racer Midstream** (energy infrastructure) is a private joint venture
+(Williams / Caiman Energy II) with no public equity or CIK at all. Both
+are honest limitations of "real trading desk built on public markets,"
+not bugs — see CLAUDE.md's Charter (listed proxies / public data only).
 
 A name can also legitimately LEAVE the traded universe (its data source
 stops returning it) — something the fixed ten simulated names could never
