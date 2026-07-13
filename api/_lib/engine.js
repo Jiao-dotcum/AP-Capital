@@ -4,6 +4,7 @@ import { SEED, DEFAULT_ELECTED, seedWorld, advanceWorld } from '../../src/engine
 import { UNIVERSE, CASH_RATE } from '../../src/engine/assets.js'
 import { regimeOf, riskOfRuin, RUIN_CEILING } from '../../src/engine/machine.js'
 import { postureOf, triggersFrom, deployAuthorized, houseView, creditWeightsFor } from '../../src/engine/cycle.js'
+import { tradedIssuers } from '../../src/engine/credit.js'
 import { buildRiskReport, DERISK_SCHEDULE, CORE_GROSS } from '../../src/engine/risk.js'
 import { pureAlphaTilt, coreTargets } from '../../src/engine/pureAlpha.js'
 import { gradeBook } from '../../src/engine/grades.js'
@@ -78,8 +79,16 @@ export const unchangedSinceRun = (prevRun, { reading, hyOasBp = null, dialOverri
 // from the append-only dial_overrides table): non-null pins the dial, null
 // resumes automatic. It applies to the world BEFORE advancing so the sleeve
 // weights, feed entries, and the book's rebalance all see the ratified value.
-export function runEngineStep(prevRun, { reading, hyOasBp = null, knownAt, prices = null, dialOverride = null }) {
-  const world0 = { ...(prevRun?.world ?? seedWorld()), dialOverride: dialOverride ?? null }
+export function runEngineStep(prevRun, { reading, hyOasBp = null, knownAt, prices = null, dialOverride = null, realIssuers = null }) {
+  const world0 = {
+    ...(prevRun?.world ?? seedWorld()),
+    dialOverride: dialOverride ?? null,
+    // A null realIssuers this run (feature unconfigured, or a transient
+    // EDGAR/Alpaca failure) carries forward whatever the desk already had —
+    // real fundamentals don't change daily, so a one-day fetch hiccup
+    // shouldn't empty the real book. A fresh array (even []) always wins.
+    realIssuers: realIssuers ?? prevRun?.world?.realIssuers ?? [],
+  }
   const book0 = prevRun?.book ?? initBook()
   // With a live spread advanceWorld makes no rng draw; the generator exists so
   // a missing spread still evolves the cycle deterministically per-step
@@ -154,6 +163,16 @@ export function runEngineStep(prevRun, { reading, hyOasBp = null, knownAt, price
     ruinBreached,
     filled,
     vetoed,
+    // The real trading desk (2026-07-13): live-verified issuers actually
+    // traded this run, sealed here so a change in real-market inputs (a
+    // filing revision, a leverage fix clearing a gate) is as tamper-evident
+    // as any other decision input. Empty until EDGAR + Alpaca both clear a
+    // name (api/_lib/realIssuers.js) — see tradedIssuers, engine/credit.js.
+    realIssuers: world.realIssuers.map((r) => ({
+      id: r.id, name: r.name, sector: r.sector, rating: r.rating,
+      lev: r.lev, cov: r.cov, mult: r.mult, av: r.av, price: r.price,
+      source: r.source, fiscalEnd: r.fiscalEnd ?? null, priceAsOf: r.priceAsOf ?? null,
+    })),
   }
 
   // ————— Daily P&L attribution. dayPnl per asset is the mark move on the
@@ -215,8 +234,16 @@ export function runEngineStep(prevRun, { reading, hyOasBp = null, knownAt, price
   }
 
   // ————— The Cycle Credit mandate's paper book, stepped on the same run —
-  // its own $1M NAV, trades with reasons, sealed alongside the Core's.
-  const creditStep = stepCreditBook(prevRun?.creditBook ?? null, { cycle: world.cycle, dial, dialOverride })
+  // its own $1M NAV, trades with reasons, sealed alongside the Core's. The
+  // traded universe (tradedIssuers) is the SAME union world.js's screen used
+  // above — the desk the Firm's feed narrates and the desk that actually
+  // holds positions never diverge.
+  const creditStep = stepCreditBook(prevRun?.creditBook ?? null, {
+    cycle: world.cycle,
+    dial,
+    dialOverride,
+    issuers: tradedIssuers(world.realIssuers),
+  })
   const credit = { pnl: creditStep.pnl, orders: creditStep.orders }
 
   const run = {

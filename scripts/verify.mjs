@@ -32,7 +32,7 @@ console.log('— engine —')
 const eng = async (m) => import(join(ROOT, 'src/engine', m))
 const { runBacktest, windowStats } = await eng('backtest.js')
 const { buildRiskReport } = await eng('risk.js')
-const { screenPerforming } = await eng('credit.js')
+const { screenPerforming, tradedIssuers, unleverAssetVol, realizedVolAnnual, buildRealIssuer, ISSUERS } = await eng('credit.js')
 const { CYCLE0 } = await eng('cycle.js')
 const { UNIVERSE } = await eng('assets.js')
 const { gradeBook } = await eng('grades.js')
@@ -59,6 +59,31 @@ const bookW = screen.reduce((s, r) => s + r.weight, 0)
 check('credit book non-empty at CYCLE0', bookW > 99 && bookW < 101, `weights sum ${bookW.toFixed(1)}%`)
 check('credit book has PRIME/HOLD', screen.some((r) => r.verdict === 'PRIME' || r.verdict === 'HOLD'))
 check('single-name cap respected', Math.max(...screen.map((r) => r.weight)) <= 22.01)
+
+// ————— The real trading desk (KMV unlevering, real issuers) —————
+const kmv1 = unleverAssetVol(50e9, 0.35, 30e9)
+check('KMV unlever deterministic', same(kmv1, unleverAssetVol(50e9, 0.35, 30e9)))
+check('KMV asset vol < equity vol (levered claim)', kmv1.assetVol < 0.35 && kmv1.assetVol > 0, kmv1.assetVol.toFixed(3))
+let kmvThrew = false
+try { unleverAssetVol(0, 0.3, 10e9) } catch { kmvThrew = true }
+check('KMV throws on non-positive inputs rather than returning garbage', kmvThrew)
+
+const smoothCloses = Array.from({ length: 90 }, (_, i) => 100 * Math.pow(1.001, i))
+check('realizedVolAnnual sane on a smooth series', realizedVolAnnual(smoothCloses) < 0.05)
+
+const realFixture = buildRealIssuer(
+  { ticker: 'TST', name: 'Test Issuer Co', sector: 'Industrials', rating: 'Ba1', recovery: 55 },
+  { lev: 3.2, cov: 3.8, debt: 12e9, ebitda: 3.75e9 },
+  { price: 45, sharesOut: 1.2e9, equityVolAnnual: 0.32 },
+)
+check('buildRealIssuer produces a valid ISSUERS-shaped row', realFixture.id === 'TST' && Number.isFinite(realFixture.mult) && Number.isFinite(realFixture.av) && realFixture.source === 'EDGAR+KMV')
+const mergedIssuers = tradedIssuers([realFixture])
+check('tradedIssuers additive (10 sim + real, not a replacement)', mergedIssuers.length === ISSUERS.length + 1)
+check('tradedIssuers(null/[]) is a no-op — pre-real-desk behavior unchanged', tradedIssuers(null) === ISSUERS && tradedIssuers([]) === ISSUERS)
+const mergedScreen = screenPerforming(CYCLE0, mergedIssuers)
+const mergedW = mergedScreen.reduce((s, r) => s + r.weight, 0)
+check('merged (real+sim) book still balances', mergedW > 99 && mergedW < 101, `weights sum ${mergedW.toFixed(1)}%`)
+check('real issuer appears in the merged screen', mergedScreen.some((r) => r.id === 'TST'))
 
 const ctx = { g: 0.3, i: -0.2, dial: 50 }
 const grades = gradeBook(ctx)
@@ -91,6 +116,23 @@ check('P&L identity: start + day + cost = end',
   Math.abs(run1.pnl.navStart + run1.pnl.dayPnl + run1.pnl.tradingCost - run1.pnl.navEnd) < 0.02)
 check('risk statement sealed (CVaR, seasons, drawdown)',
   run1.risk.cvar95Dollar < 0 && run1.risk.seasons.length === 4 && 'currentPct' in run1.risk.drawdown)
+check('no realIssuers = pre-real-desk behavior unchanged', run1.world.realIssuers.length === 0 && run1.decision.realIssuers.length === 0)
+
+// The real trading desk end to end through runEngineStep: a real issuer
+// actually reaches the credit book's orders, gets sealed in decision.realIssuers
+// (hash-audited, not just carried state), survives a run where the fetch is
+// skipped (realIssuers: null → carries forward), and can be explicitly
+// cleared (realIssuers: [] → a real "nothing cleared" result, not a fetch gap).
+const realFixtureRow = { id: 'TST', name: 'Test Issuer Co', sector: 'Industrials', rating: 'Ba1', recovery: 55, lev: 3.2, cov: 3.8, mult: 17.5, av: 0.221, price: 99, source: 'EDGAR+KMV', fiscalEnd: '2025-12-31', priceAsOf: '2026-07-10T00:00:00Z' }
+const inR1 = { ...in1, realIssuers: [realFixtureRow] }
+const runR1 = runEngineStep(null, inR1)
+check('real-desk run deterministic', same(runR1, runEngineStep(null, inR1)))
+check('real issuer sealed in decision.realIssuers', runR1.decision.realIssuers.length === 1 && runR1.decision.realIssuers[0].id === 'TST')
+check('real issuer reaches the credit book orders', runR1.credit.orders.some((o) => o.id === 'TST'))
+const runR2null = runEngineStep(runR1, { reading: run2.reading, hyOasBp: run2.hyOasBp, knownAt: '2026-01-02T00:00:00.000Z', prices: null, realIssuers: null })
+check('null realIssuers carries the previous run forward', runR2null.world.realIssuers.length === 1)
+const runR2clear = runEngineStep(runR1, { reading: run2.reading, hyOasBp: run2.hyOasBp, knownAt: '2026-01-02T00:00:00.000Z', prices: null, realIssuers: [] })
+check('explicit [] clears the real book (no crash when a name exits the universe)', runR2clear.world.realIssuers.length === 0)
 
 const mbt1 = runMandateBacktests()
 check('mandate backtests deterministic', same(mbt1, runMandateBacktests()))

@@ -169,6 +169,18 @@ loads live coverage/leverage from the scheduled feed on every visit — no
 Anthropic key, no button click (both still work as manual overrides).
 Unset, the feed is skipped and the panel keeps its offline estimates.
 
+### The real trading desk — needs BOTH SEC_USER_AGENT and Alpaca
+
+With `SEC_USER_AGENT` AND `ALPACA_KEY_ID`/`ALPACA_SECRET_KEY` all set,
+`api/_lib/realIssuers.js` KMV-unlevers the EDGAR fundamentals above against
+a live Alpaca equity price history and, for any name that clears every gate,
+adds it to the desk's ACTUAL traded universe (`tradedIssuers`, not just the
+benchmark panel) — see `docs/ENGINE_GUIDE.md` §6 for the methodology. Either
+var alone is not enough: EDGAR without Alpaca has fundamentals but no equity
+value/vol to unlever; Alpaca without EDGAR has prices but no debt/EBITDA.
+Look for `"realIssuersTraded"` (the names that made it in) and
+`"realIssuerErrors"` (names that didn't, and why) in the ingest response.
+
 ### The dial override (human ratification, canonical)
 
 The Charter's human override now binds the canonical run, not just one

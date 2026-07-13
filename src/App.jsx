@@ -12,7 +12,7 @@ import {
   deployAuthorized,
 } from './engine/cycle.js'
 import { SEED, FEED_LENGTH, DEFAULT_ELECTED, seedWorld, advanceWorld } from './engine/world.js'
-import { screenPerforming } from './engine/credit.js'
+import { screenPerforming, tradedIssuers } from './engine/credit.js'
 import { bestIdeas } from './engine/origination.js'
 import { scanCatalysts } from './engine/sourcing.js'
 import { memoFrom, quarterLabel } from './engine/firm.js'
@@ -137,7 +137,11 @@ export default function App() {
   // dial-scoped); creditW is the credit mandate's internal allocation.
   const houseW = useMemo(() => houseView(dial), [dial])
   const creditW = useMemo(() => creditWeightsFor(dial), [dial])
-  const screen = useMemo(() => screenPerforming(world.cycle), [world.cycle])
+  // world.realIssuers (empty until a backend load supplies real, live-
+  // verified names — see the /api/state load below) is additive onto the
+  // ten simulated issuers, so this screen IS the actual traded universe,
+  // not an estimate of it.
+  const screen = useMemo(() => screenPerforming(world.cycle, tradedIssuers(world.realIssuers)), [world.cycle, world.realIssuers])
   const triggers = useMemo(() => triggersFrom(world.cycle), [world.cycle])
   const deploy = deployAuthorized(triggers)
   // The proving ground runs once — fixed seed, identical report every session.
@@ -323,7 +327,15 @@ export default function App() {
         })
       }
       if (!s.reading) return
-      setWorld((w) => advanceWorld(engine.rng, w, s.reading, s.hyOasBp ?? null))
+      // The server's real trading desk (real, live-verified issuers merged
+      // onto the simulated ten — see engine/credit.js's tradedIssuers) is
+      // carried onto the local world here so the browser's screen render
+      // and any further local simulate steps stay in sync with what the
+      // canonical run actually traded.
+      const realIssuers = s.run?.decision?.realIssuers
+      setWorld((w) =>
+        advanceWorld(engine.rng, realIssuers ? { ...w, realIssuers } : w, s.reading, s.hyOasBp ?? null),
+      )
       setLiveTape(s.tape ?? null)
       setStatus({
         kind: 'live',

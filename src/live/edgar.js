@@ -206,12 +206,20 @@ export function deriveFundamentals(issuer, facts) {
   const pd = pdFromDtD(dd)
   const lgd = 1 - issuer.recovery / 100
   const mig = migrationOf(issuer.rating)
+  // Shares outstanding — the one extra fact the real trading desk needs
+  // beyond this benchmark panel's own display: market cap = price × shares,
+  // and market cap is what the KMV unlevering in engine/credit.js needs to
+  // turn a real equity price into a real equity VALUE (see
+  // buildRealIssuer / api/_lib/realIssuers.js). Harmless to compute here
+  // even when nothing downstream uses it yet.
+  const sharesOut = latestAnnual(facts, ['CommonStockSharesOutstanding', 'CommonStockSharesIssued'])
   return {
     ...issuer,
     cov,
     lev,
     ebitda,
     debt,
+    sharesOut,
     fiscalEnd: opIncObs.end ?? null, // the FY these facts are FOR (PIT obsDate)
     dd: +dd.toFixed(1),
     pd,

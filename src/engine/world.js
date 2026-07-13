@@ -9,7 +9,7 @@ import {
   triggersFrom,
   deployAuthorized,
 } from './cycle.js'
-import { screenPerforming } from './credit.js'
+import { screenPerforming, tradedIssuers } from './credit.js'
 import { riskOfRuin, RUIN_CEILING } from './machine.js'
 import { buildFeed } from './firm.js'
 
@@ -43,6 +43,12 @@ export function seedWorld() {
     feed: [],
     vetoCount: 0,
     dialOverride: null,
+    // Real, live-verified issuers (Ford/Carnival/Occidental — see
+    // api/_lib/realIssuers.js) merged additively onto the ten simulated
+    // names by tradedIssuers below. Empty until a canonical run or backend
+    // load supplies them — the desk behaves identically to before this
+    // feature until then (Invariant 5).
+    realIssuers: [],
   }
 }
 
@@ -56,7 +62,10 @@ export function advanceWorld(rng, world, reading, liveSpread = null) {
   const autoDial = settleDial(world.autoDial, dialFrom(proxyScores(cycle, cycleHist)))
   const dial = world.dialOverride ?? autoDial
   const weights = houseView(dial) // Core fixed, credit dial-scoped — see seedWorld
-  const screen = screenPerforming(cycle)
+  // world.realIssuers is not touched by this step — it's set once by the
+  // caller (server ingest, or a backend-state load in the browser) and
+  // carried forward via the spread below, exactly like dialOverride.
+  const screen = screenPerforming(cycle, tradedIssuers(world.realIssuers))
   const triggers = triggersFrom(cycle)
   const ruin = riskOfRuin(reading)
   const n = world.releaseN + 1

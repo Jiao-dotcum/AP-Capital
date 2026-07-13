@@ -66,7 +66,11 @@ function. Never advance the world any other way.
     everywhere flows from seeded mulberry32.
   - `world.js` — `seedWorld()` + `advanceWorld(rng, world, reading,
     liveSpread)`: THE per-release state transition (Invariant 2), plus the
-    shared constants (`SEED`, trail/feed lengths, `DEFAULT_ELECTED`). Shared
+    shared constants (`SEED`, trail/feed lengths, `DEFAULT_ELECTED`).
+    `world.realIssuers` (real trading-desk names) is set once by the caller
+    (server ingest, or a backend-state load in the browser) and carried
+    forward via the spread in `advanceWorld`'s return, exactly like
+    `dialOverride` — never touched mid-step. Shared
     verbatim by `App.jsx` and `api/_lib/engine.js`.
   - `machine.js` — surprise draws, `PRICED_IN` consensus constants, release
     tape, regime quadrants, three gears, risk-of-ruin (ceiling 2.5%).
@@ -81,13 +85,25 @@ function. Never advance the world any other way.
     view with Core fixed. The legacy `weightsFor` anchors remain verbatim —
     the backtest walks them as the coupled policy the firm measured and
     rejected.
-  - `credit.js` — 10 issuers from structural fundamentals; Merton
+  - `credit.js` — 10 simulated issuers from structural fundamentals; Merton
     distance-to-default from EV-multiple/leverage/asset-vol; PD via an
     **empirically calibrated DtD→PD map** (`pdFromDtD` — the Gaussian tail is
     deliberately not used); expected-loss model-fair spread vs rating-anchored
     market spread → divergence (second-level thinking); ratings-transition
     matrix; MoS sizing with name/sector caps applied at the gate.
-    Deterministic per cycle print via `hash01`, not rng.
+    Deterministic per cycle print via `hash01`, not rng. **The real trading
+    desk** (since 2026-07-13): `unleverAssetVol` is a KMV-style fixed-point
+    iteration (60 steps, deterministic) that inverts the Black–Scholes
+    equity-value/equity-vol equations to recover a real issuer's ASSET value
+    and vol from its OBSERVABLE equity market cap and realized equity
+    volatility — a different job from `pdFromDtD` above (that N() is numerical
+    machinery for the inversion, not the final PD mapping, which still
+    deliberately avoids the Gaussian tail). `buildRealIssuer(meta,
+    fundamentals, market)` assembles one real issuer into the exact ISSUERS
+    shape (fails loud on any missing/implausible input — never estimates);
+    `tradedIssuers(realIssuers)` merges real names onto the 10 simulated ones
+    **additively** — the desk's actual traded universe everywhere
+    `screenPerforming` is called to trade (not just display) real credit.
   - `assets.js` — 17-asset UNIVERSE with `er/vol/bG/bI/bM/carry`;
     `monthlyReturn` is the **canonical return generator** (drift + macro
     betas·SURPRISE_PP + shared market shock·MARKET_VOL·bM, stress-amplified
@@ -178,9 +194,17 @@ function. Never advance the world any other way.
   anchor its head externally to make tamper-evident into tamper-proof),
   `journal.js` (the daily journal read endpoint), `_lib/creditBook.js` (the
   Cycle Credit mandate's own $1M live paper ledger: performing sleeve marks
-  off the real screen, distressed off the CLO proxy gated by triggers,
-  orders with second-level reasons; state persisted per run in
-  `credit_book`, P&L/orders sealed as the `credit` block). Each run seals
+  off the real screen — now `tradedIssuers(world.realIssuers)`, real names
+  included — distressed off the CLO proxy gated by triggers, orders with
+  second-level reasons; state persisted per run in `credit_book`, P&L/orders
+  sealed as the `credit` block), `_lib/realIssuers.js` (**the real trading
+  desk**: reuses the SAME EDGAR fundamentals `ingest.js` already fetched
+  — never a second SEC call — plus a longer-lookback Alpaca equity price
+  history (`fetchEquityHistory`/`barsToCloseSeries`, `_lib/marketdata.js`)
+  to compute each benchmark issuer's realized equity vol and KMV-unlever it
+  against the filed debt; a name that fails EDGAR, has too little price
+  history, or doesn't KMV-converge is excluded, never estimated, and
+  reported in `realIssuerErrors`). Each run seals
   `pnl` (Core day P&L attributed per asset, slippage split out), `risk`
   (CVaR, season shares, drawdown rung, crisis replays), and `credit`, and
   gives every order a deterministic `rationale` written at planning time —
@@ -277,6 +301,20 @@ unless it follows the rule.
   crisis-correlation story invisible. → *Rule: cross-asset correlation claims
   are measured within the `RISK_ON` cohort, and the crisis mechanism lives in
   `stressAmp` (the shared shock amplifies in risk-off months).*
+- **The universe that used to be fixed.** `stepCreditBook`'s P&L loop looked
+  up each held position's issuer by id in the CURRENT screen and read
+  `now.price` unconditionally — safe for 22 months of the credit backtest
+  and every prior production run, because the 10 simulated issuers were a
+  fixed universe: `now` could never be missing. The moment real issuers
+  (which CAN legitimately leave the traded universe — a data source stops
+  returning a name) were wired in, a fixture exercising exactly that case
+  crashed with `Cannot read properties of undefined (reading 'price')`. →
+  *Rule: any code written against "the universe" being fixed-size must be
+  re-audited the moment a feature makes the universe variable — grep for
+  every `.find(...)` against issuer/asset ids and confirm the miss case is
+  handled, not just the common case. Caught by a fixture BEFORE shipping,
+  not in production, by writing the "a name leaves the universe" test the
+  same day the universe became variable.*
 - **"fetch failed" says nothing.** Node/undici buries the real network error
   in `err.cause` and reports the useless string "fetch failed". → *Rule:
   every server-side fetch wrapper catches, surfaces `err.cause.code`, and

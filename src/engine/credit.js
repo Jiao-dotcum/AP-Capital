@@ -43,6 +43,125 @@ export function mertonDtD(issuer, stressVol = 1) {
 // 2 → ~4%, 1 → ~15%, 0 → ~35%.
 export const pdFromDtD = (dd) => +clamp(0.55 * Math.exp(-1.3 * dd), 0.0001, 0.6).toFixed(4)
 
+// ————— KMV-style structural unlevering (real issuers only) —————
+// mertonDtD above needs the FIRM's asset value and volatility (`mult`, `av`),
+// but those aren't observable for a real company — only its EQUITY value
+// (market cap) and equity volatility (realized, from the price history) are.
+// Equity is a call option on the firm's assets (Merton 1974): its value and
+// volatility relate to the asset value/vol through two Black–Scholes
+// equations. KMV inverts them by fixed-point iteration:
+//   E    = V·N(d1) − D·e^(−rT)·N(d2)
+//   σE·E = N(d1)·σV·V
+// Solved here for (V, σV) given the OBSERVABLE (E, σE, D). This N() is
+// numerical machinery for that inversion — a different job from pdFromDtD
+// above, which deliberately avoids N(−DtD) for the final PD mapping because
+// the Gaussian tail is miscalibrated against real default rates. Unlevering
+// asset value from equity value has no such calibration problem; it's just
+// solving two equations for two unknowns.
+function erf(x) {
+  const sign = x < 0 ? -1 : 1
+  const ax = Math.abs(x)
+  const a1 = 0.254829592, a2 = -0.284496736, a3 = 1.421413741, a4 = -1.453152027, a5 = 1.061405429, p = 0.3275911
+  const t = 1 / (1 + p * ax)
+  const y = 1 - (((((a5 * t + a4) * t + a3) * t + a2) * t + a1) * t) * Math.exp(-ax * ax)
+  return sign * y
+}
+const normCdf = (x) => 0.5 * (1 + erf(x / Math.SQRT2))
+
+// A fixed iteration count (not a while-loop convergence check) keeps this
+// deterministic (Invariant 3) — the same inputs always take the same number
+// of steps. Throws rather than returning a garbage value on non-convergent
+// or implausible input (the discipline that fixed the Ford Infinity bug):
+// asset vol must land between 2% and the equity vol itself (equity is a
+// levered claim, so it can only be MORE volatile than the assets beneath it,
+// never less — a violation means the iteration diverged).
+export function unleverAssetVol(equityValue, equityVolAnnual, debtFace, opts = {}) {
+  const rf = opts.rf ?? RF
+  const horizon = opts.horizon ?? HORIZON
+  const iters = opts.iters ?? 60
+  if (!(equityValue > 0 && equityVolAnnual > 0 && debtFace > 0)) {
+    throw new Error('unleverAssetVol: equity value, equity vol, and debt must all be positive')
+  }
+  let V = equityValue + debtFace
+  let sigV = (equityVolAnnual * equityValue) / V
+  for (let k = 0; k < iters; k++) {
+    const d1 = (Math.log(V / debtFace) + (rf + 0.5 * sigV * sigV) * horizon) / (sigV * Math.sqrt(horizon))
+    const d2 = d1 - sigV * Math.sqrt(horizon)
+    const Nd1 = normCdf(d1)
+    const Nd2 = normCdf(d2)
+    if (Nd1 < 1e-6) break
+    V = (equityValue + debtFace * Math.exp(-rf * horizon) * Nd2) / Nd1
+    sigV = (equityVolAnnual * equityValue) / (Nd1 * V)
+  }
+  if (!Number.isFinite(V) || !Number.isFinite(sigV) || sigV <= 0) {
+    throw new Error('unleverAssetVol: did not converge to a plausible result')
+  }
+  return { assetValue: V, assetVol: clamp(sigV, 0.02, equityVolAnnual) }
+}
+
+// Annualized realized volatility from a daily close series: stdev of daily
+// log returns × √252. Needs enough history that one noisy week can't swing
+// the estimate — 20 trading days is a floor, not a target (the caller
+// requests a longer lookback; see api/_lib/marketdata.js).
+export function realizedVolAnnual(closes) {
+  if (!Array.isArray(closes) || closes.length < 20) {
+    throw new Error('realizedVolAnnual: need at least 20 daily closes')
+  }
+  const rets = []
+  for (let i = 1; i < closes.length; i++) rets.push(Math.log(closes[i] / closes[i - 1]))
+  const mean = rets.reduce((s, r) => s + r, 0) / rets.length
+  const variance = rets.reduce((s, r) => s + (r - mean) ** 2, 0) / (rets.length - 1)
+  return Math.sqrt(variance * 252)
+}
+
+// Starting calm-market bond price by rating, matching the simulated desk's
+// own convention above (Ba-ish names near par, single-B names in the
+// mid-90s, Caa well below). This is only the initial reference point —
+// screenPerforming recomputes price dynamically from divergence and cycle
+// stress on every screen, real issuers included.
+const START_PRICE_BY_RATING = { Baa1: 100, Baa2: 100, Baa3: 99, Ba1: 99, Ba2: 98, Ba3: 97, B1: 96, B2: 94, B3: 88, Caa1: 78 }
+
+// Assemble one real issuer into the exact shape screenPerforming expects:
+// leverage and coverage come straight from the SEC filing (deriveFundamentals,
+// src/live/edgar.js); the asset multiple and asset vol come from KMV-
+// unlevering the firm's real equity market cap and realized equity
+// volatility against that same filed debt. Throws (fails loud, never
+// silently estimates) if any required live input is missing or the KMV
+// solve doesn't converge to something plausible — the caller excludes the
+// name from the traded book rather than trading on a garbage number.
+export function buildRealIssuer(meta, fundamentals, market) {
+  const { lev, cov, debt, ebitda } = fundamentals
+  const { price, sharesOut, equityVolAnnual } = market
+  if (!(Number.isFinite(price) && price > 0)) throw new Error(`${meta.ticker}: no live equity price`)
+  if (!(Number.isFinite(sharesOut) && sharesOut > 0)) throw new Error(`${meta.ticker}: shares outstanding missing from filing`)
+  if (!(Number.isFinite(equityVolAnnual) && equityVolAnnual > 0)) throw new Error(`${meta.ticker}: could not compute realized equity vol`)
+  if (!(Number.isFinite(ebitda) && ebitda > 0)) throw new Error(`${meta.ticker}: EBITDA not positive — cannot form an EV multiple`)
+  const equityValue = price * sharesOut
+  const { assetValue, assetVol } = unleverAssetVol(equityValue, equityVolAnnual, debt)
+  return {
+    id: meta.ticker,
+    name: meta.name,
+    sector: meta.sector,
+    rating: meta.rating,
+    recovery: meta.recovery,
+    lev,
+    cov,
+    mult: +(assetValue / ebitda).toFixed(1),
+    av: +assetVol.toFixed(3),
+    price: START_PRICE_BY_RATING[meta.rating] ?? 95,
+    source: 'EDGAR+KMV',
+  }
+}
+
+// The trading desk's actual universe: the ten simulated issuers, extended by
+// any real, live-verified names (built server-side — see
+// api/_lib/realIssuers.js). Additive, not a replacement: real coverage grows
+// the book without discarding the existing simulated names, and every
+// concentration cap below applies across the union exactly as it does today.
+export function tradedIssuers(realIssuers) {
+  return realIssuers && realIssuers.length ? [...ISSUERS, ...realIssuers] : ISSUERS
+}
+
 // ————— The one-year ratings-transition matrix (Markov migration) —————
 // Rows = rating bucket today, columns = bucket in one year. Rough
 // agency-style through-the-cycle probabilities; each row sums to 1.

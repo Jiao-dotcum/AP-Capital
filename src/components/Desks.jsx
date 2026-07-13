@@ -35,6 +35,7 @@ export default function Desks({ screen, triggers, deploy, cycle, powderPct, edga
                 <th className="r">MoS</th>
                 <th className="r">Weight</th>
                 <th>Verdict</th>
+                <th>Source</th>
               </tr>
             </thead>
             <tbody>
@@ -60,6 +61,9 @@ export default function Desks({ screen, triggers, deploy, cycle, powderPct, edga
                     {r.capped && <span className="mono" style={{ color: 'var(--bronze)' }}> ▲</span>}
                   </td>
                   <td className={`mono ${VERDICT_CLASS[r.verdict]}`}>{r.verdict}</td>
+                  <td className="mono" style={{ color: r.source === 'EDGAR+KMV' ? 'var(--laurel)' : 'var(--limestone)' }}>
+                    {r.source === 'EDGAR+KMV' ? 'EDGAR+KMV' : 'SIM'}
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -70,7 +74,10 @@ export default function Desks({ screen, triggers, deploy, cycle, powderPct, edga
           spread. Positive = the crowd demands more than the modeled risk warrants (our kind of
           name — quality carries a premium above its expected loss); negative = the market
           under-prices the tail. Alpha is permitted only where the model disagrees with consensus.
-          ▲ marks a position trimmed by a concentration cap.
+          ▲ marks a position trimmed by a concentration cap. Source: SIM = fictional structural
+          fundamentals; EDGAR+KMV = a real, live-verified issuer — leverage and coverage from the
+          SEC filing, asset multiple and asset vol from KMV-unlevering the firm's real equity
+          market cap and realized volatility against that filed debt.
         </p>
       </div>
 

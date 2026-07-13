@@ -18,10 +18,12 @@ import { CASH_RATE } from '../../src/engine/assets.js'
 //
 // Sleeve weights are creditWeightsFor(dial) — the dial's one jurisdiction.
 // Unlike the backtest walk, the LIVE book simulates no issuer migrations or
-// defaults: live issuers are the static structural snapshot until real
-// fundamentals (EDGAR) replace them, and marks move only with the real,
-// FRED-anchored cycle state. Every figure is simulated/paper, labeled as
-// such, and sealed into the run's hash chain via the `credit` block.
+// defaults: the ten simulated names are a static structural snapshot, and
+// marks move only with the real, FRED-anchored cycle state. Since 2026-07-13
+// the traded universe (`issuers`, below) additionally includes real,
+// live-verified names when api/_lib/realIssuers.js clears them — see
+// engine/credit.js's tradedIssuers. Every figure is simulated/paper, labeled
+// as such, and sealed into the run's hash chain via the `credit` block.
 
 export const CREDIT_START_NAV = 1_000_000
 const DISTRESSED_MULT = 1.55
@@ -41,9 +43,12 @@ const slim = (rows) =>
 
 // Advance the credit book one canonical run. Pure: same inputs ⇒ same book.
 // Returns { book, pnl, orders } — pnl and orders are sealed in the payload.
-export function stepCreditBook(prev, { cycle, dial, dialOverride }) {
+// `issuers` is the desk's actual traded universe for this run (tradedIssuers
+// applied by the caller); omitted, screenPerforming falls back to its own
+// simulated-only default — existing callers/tests are unaffected.
+export function stepCreditBook(prev, { cycle, dial, dialOverride, issuers }) {
   const book = prev ?? initCreditBook()
-  const rows = screenPerforming(cycle)
+  const rows = screenPerforming(cycle, issuers)
   const [perfW, distW, powderW] = creditWeightsFor(dial)
   const triggers = triggersFrom(cycle)
   const deploy = deployAuthorized(triggers)
@@ -57,6 +62,15 @@ export function stepCreditBook(prev, { cycle, dial, dialOverride }) {
     for (const prevRow of book.prevRows) {
       if (prevRow.weight <= 0) continue
       const now = rows.find((r) => r.id === prevRow.id)
+      // A name can leave the traded universe entirely — not just fail this
+      // cycle's screen (screenPerforming still returns a REJECT row, weight
+      // 0, for every issuer it was GIVEN), but actually vanish from
+      // `issuers` itself. That's only possible for real issuers (a data
+      // source stops returning the name); the ten simulated names are a
+      // fixed universe and never do this. No fresh price exists to mark
+      // against, so skip today's contribution rather than crash on it —
+      // the "sell to zero" order below already exits the position.
+      if (!now) continue
       const carry = (380 + prevRow.marketSpread) / 1200 // rf + spread accrual, %/mo
       const mtm = 100 * (now.price / prevRow.price - 1)
       perfRet += (prevRow.weight / 100) * (carry + mtm)

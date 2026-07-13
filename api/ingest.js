@@ -2,6 +2,7 @@ import dns from 'node:dns'
 import { fetchFredState, fredApiKeyConfigured } from './_lib/ingest.js'
 import { marketConfigured, fetchPrices } from './_lib/marketdata.js'
 import { secConfigured, fetchFundamentals } from './_lib/edgar.js'
+import { buildRealIssuers } from './_lib/realIssuers.js'
 import { runEngineStep, unchangedSinceRun } from './_lib/engine.js'
 import {
   configured,
@@ -92,19 +93,38 @@ export default async function handler(req, res) {
 
   // Credit fundamentals (SEC EDGAR) — keyless, but gated on SEC_USER_AGENT
   // (SEC requires an identifying User-Agent). Independent of the feeds above.
+  let edgarRows = null
   if (secConfigured()) {
     try {
-      const rows = await fetchFundamentals()
-      out.issuersParsed = rows.filter((r) => !r.error).length
+      edgarRows = await fetchFundamentals()
+      out.issuersParsed = edgarRows.filter((r) => !r.error).length
       // A partial failure (some issuers, not all) previously vanished into a
       // bare count — surface which name and why, or a silent per-issuer
       // error is undiagnosable from the outside.
-      const failed = rows.filter((r) => r.error)
+      const failed = edgarRows.filter((r) => r.error)
       if (failed.length) out.edgarIssuerErrors = failed.map((r) => `${r.ticker}: ${r.error}`)
-      if (configured()) out.fundamentalsStored = await insertFundamentals(rows)
+      if (configured()) out.fundamentalsStored = await insertFundamentals(edgarRows)
     } catch (err) {
       out.ok = false
       out.edgarError = String(err.message || err)
+    }
+  }
+
+  // The real trading desk (2026-07-13): KMV-unlever the SAME EDGAR
+  // fundamentals just fetched above against live Alpaca equity price
+  // history — independent try/catch so a market-data hiccup doesn't blank
+  // fundamentals and vice versa. A name that doesn't clear every gate is
+  // excluded from the traded book (out.realIssuerErrors), never estimated.
+  let realIssuers = null
+  if (edgarRows && marketConfigured()) {
+    try {
+      const built = await buildRealIssuers(edgarRows)
+      realIssuers = built.issuers
+      out.realIssuersTraded = built.issuers.map((r) => r.id)
+      if (built.errors.length) out.realIssuerErrors = built.errors
+    } catch (err) {
+      out.ok = false
+      out.realIssuerError = String(err.message || err)
     }
   }
 
@@ -133,6 +153,7 @@ export default async function handler(req, res) {
         knownAt: fredState.knownAt,
         prices,
         dialOverride: overrideFresh ? override.dial : null,
+        realIssuers,
       }
       if (unchangedSinceRun(prevRun, inputs)) {
         out.engineRun = { unchanged: true, seq: prevRun.seq, hash: prevRun.hash.slice(0, 12) }

@@ -33,7 +33,12 @@ decoupled structure won on volatility 25/30, max drawdown 24/30, and Sharpe
   ±5-point deadband — Defense < 35, Neutral 35–65, Offense > 65) sizes ONLY
   this mandate's internal allocation across performing credit, distressed,
   and dry powder (`creditWeightsFor`). Defense hoards powder; offense
-  deploys into despair.
+  deploys into despair. The performing sleeve's screen (`screenPerforming`)
+  trades ten simulated issuers extended, since 2026-07-13, by real,
+  live-verified names (Ford, Carnival, Occidental) whenever SEC EDGAR
+  filings and Alpaca equity price history both clear every gate — see
+  `docs/ENGINE_GUIDE.md` §6 for the KMV methodology. A name that fails to
+  clear is excluded from the traded book, never estimated.
 - **Human ratification (the override)** may pin the dial at any value or
   resume automatic. Every override is an append-only record, and the run
   that obeys it says so inside the sealed decision (`decision.dialOverride`).

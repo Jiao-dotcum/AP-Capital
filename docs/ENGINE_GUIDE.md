@@ -92,15 +92,22 @@ endpoints).
 2. FRED returns the day's real prints → `interpretFredCsv` turns them into a
    surprise reading `{g, i}` plus the HY OAS spread. Alpaca (if configured)
    returns real closes; EDGAR (if configured) refreshes issuer fundamentals.
+   `_lib/realIssuers.js` then KMV-unlevers those SAME fundamentals against a
+   fresh Alpaca equity-price history (no second SEC call) — see §6.
 3. `runEngineStep`: the world advances through `advanceWorld` (cycle from
    the REAL spread, dial settled through its deadband, honoring any fresh
-   human override — overrides expire after 30 days).
+   human override — overrides expire after 30 days). `world.realIssuers`
+   carries forward whatever the desk already traded whenever this run's
+   fetch didn't produce a fresh array (a fetch hiccup ≠ "trade nothing
+   real").
 4. The **Core book** marks to real closes where available, then rebalances
    to `coreTargets(riskParity, pureAlphaTilt)` through caps and compliance.
    Every order gets a written rationale at planning time.
-5. The **Credit book** re-screens the issuers on the day's cycle, accrues
-   carry, marks prices, pays turnover costs, deploys powder only if ≥ 2
-   distress triggers arm — its trades carry second-level-thinking reasons.
+5. The **Credit book** re-screens `tradedIssuers(world.realIssuers)` — the
+   ten simulated names plus any real ones that cleared — on the day's cycle,
+   accrues carry, marks prices, pays turnover costs, deploys powder only if
+   ≥ 2 distress triggers arm — its trades carry second-level-thinking
+   reasons.
 6. Both books' P&L, the risk statement (CVaR, seasons, drawdown rung), and
    every trade with its reason are sealed:
    `hash = sha256(prevHash | canonical-JSON(payload))` → appended to
@@ -134,3 +141,43 @@ The project's culture is: **never trust a claim you didn't recompute.**
 | 25% / 45% / 1.6× | Single-name / class / gross caps in the OMS |
 | 30 days | A dial override's lifetime before it must be re-ratified |
 | 13 | Dashboard sections; verify asserts it |
+
+## 6 · The real trading desk (KMV unlevering, since 2026-07-13)
+
+`screenPerforming` (§2, `credit.js`) needs each issuer's asset multiple
+(`mult`, how many turns of EBITDA the FIRM's assets are worth) and asset
+volatility (`av`) — quantities that are directly observable for a made-up
+issuer (you just pick them) but NOT observable for a real company. What IS
+observable for a real company is its equity: market cap (price × shares
+outstanding) and realized equity volatility (from a price history).
+
+Equity is a call option on the firm's assets (Merton, 1974): its value and
+volatility relate to the firm's asset value and volatility through two
+Black–Scholes equations. `unleverAssetVol` (`engine/credit.js`) inverts
+those two equations by fixed-point iteration (KMV's method) — 60 fixed
+steps, always the same number regardless of input, so the result is
+deterministic (Invariant 3) — to recover the asset value and asset vol from
+the observable equity value and equity vol, given the firm's real debt.
+
+The pipeline end to end: `api/_lib/edgar.js` fetches SEC XBRL fundamentals
+(debt, EBITDA, shares outstanding) → `api/_lib/marketdata.js`'s
+`fetchEquityHistory` pulls ~120 trading days of real closes from Alpaca →
+`realizedVolAnnual` turns that into an annualized equity vol →
+`unleverAssetVol` turns (equity value, equity vol, debt) into (asset value,
+asset vol) → `buildRealIssuer` packages `mult = assetValue / EBITDA` and
+`av = assetVol` into the exact shape `screenPerforming` expects →
+`tradedIssuers` merges it ADDITIVELY onto the ten simulated names.
+
+Every step fails loud, never silently: a missing filing fact, insufficient
+price history, or a KMV solve that doesn't converge to something plausible
+(asset vol must land between the firm's equity vol and a floor — equity is
+always at least as volatile as the assets beneath it) excludes that name
+from the traded book for that run rather than trading on a garbage number.
+Excluded names and why are in `/api/ingest`'s `realIssuerErrors`.
+
+Starting scope (owner-decided, 2026-07-13): the three names EDGAR already
+covers — Ford, Carnival, Occidental. A name can also legitimately LEAVE the
+traded universe (its data source stops returning it) — something the fixed
+ten simulated names could never do, which is why `stepCreditBook`'s P&L
+loop had to be hardened for a missing current-screen row (see CLAUDE.md,
+"the universe that used to be fixed").

@@ -38,11 +38,9 @@ export function barsToPrices(json, asOfFallback) {
   return out
 }
 
-export async function fetchPrices(now = new Date()) {
-  if (!marketConfigured()) return {}
-  const start = new Date(now.getTime() - 12 * 864e5).toISOString().slice(0, 10)
+async function fetchDailyBars(symbols, start) {
   const url =
-    `https://data.alpaca.markets/v2/stocks/bars?symbols=${TICKERS.join(',')}` +
+    `https://data.alpaca.markets/v2/stocks/bars?symbols=${symbols.join(',')}` +
     `&timeframe=1Day&start=${start}&adjustment=all&feed=iex&limit=1000&sort=asc`
   const res = await fetch(url, {
     headers: {
@@ -52,5 +50,38 @@ export async function fetchPrices(now = new Date()) {
     },
   })
   if (!res.ok) throw new Error(`Alpaca HTTP ${res.status}`)
-  return barsToPrices(await res.json(), now.toISOString())
+  return res.json()
+}
+
+export async function fetchPrices(now = new Date()) {
+  if (!marketConfigured()) return {}
+  const start = new Date(now.getTime() - 12 * 864e5).toISOString().slice(0, 10)
+  return barsToPrices(await fetchDailyBars(TICKERS, start), now.toISOString())
+}
+
+// Pure: same multi-symbol daily-bars JSON, but keeps the whole close series
+// (not just the last two bars) — what the real trading desk's KMV unlevering
+// needs to compute a realized equity volatility (see engine/credit.js,
+// realizedVolAnnual). A separate transform from barsToPrices because the two
+// callers want different shapes of the same payload.
+export function barsToCloseSeries(json, asOfFallback) {
+  const bars = json?.bars || {}
+  const out = {}
+  for (const [sym, arr] of Object.entries(bars)) {
+    if (!Array.isArray(arr) || !arr.length) continue
+    const closes = arr.map((b) => b.c).filter(Number.isFinite)
+    if (closes.length < 2) continue
+    out[sym] = { closes, latestClose: closes[closes.length - 1], asof: arr[arr.length - 1].t || asOfFallback }
+  }
+  return out
+}
+
+// Individual-name equity history for the real trading desk's benchmark
+// issuers (Ford, Carnival, Occidental) — a longer lookback than the 17 ETF
+// proxies above need, and a different symbol set, so it's a separate call
+// rather than folded into fetchPrices/TICKERS.
+export async function fetchEquityHistory(tickers, now = new Date(), days = 120) {
+  if (!marketConfigured() || !tickers.length) return {}
+  const start = new Date(now.getTime() - days * 864e5).toISOString().slice(0, 10)
+  return barsToCloseSeries(await fetchDailyBars(tickers, start), now.toISOString())
 }
