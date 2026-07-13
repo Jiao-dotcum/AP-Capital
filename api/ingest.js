@@ -113,12 +113,21 @@ export default async function handler(req, res) {
     try {
       const prevRun = await getLatestRun()
       const override = await getLatestDialOverride()
+      // A pinned dial is a decision, not a setting: it expires after 30 days
+      // unless re-ratified, so a forgotten override can't steer the credit
+      // mandate indefinitely. Expiry is surfaced in the response.
+      const OVERRIDE_TTL_DAYS = 30
+      const overrideFresh =
+        override?.dial != null &&
+        override.setAt != null &&
+        Date.now() - new Date(override.setAt).getTime() < OVERRIDE_TTL_DAYS * 864e5
+      if (override?.dial != null && !overrideFresh) out.overrideExpired = true
       const inputs = {
         reading: fredState.reading,
         hyOasBp: fredState.hyOasBp ?? null,
         knownAt: fredState.knownAt,
         prices,
-        dialOverride: override?.dial ?? null,
+        dialOverride: overrideFresh ? override.dial : null,
       }
       if (unchangedSinceRun(prevRun, inputs)) {
         out.engineRun = { unchanged: true, seq: prevRun.seq, hash: prevRun.hash.slice(0, 12) }

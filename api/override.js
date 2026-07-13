@@ -18,7 +18,15 @@ export default async function handler(req, res) {
 
   if (req.method === 'GET') {
     const current = await getLatestDialOverride()
-    return res.status(200).json({ configured: true, override: current })
+    // Overrides expire after 30 days (see api/ingest.js) — say so here too.
+    const ageDays = current?.setAt ? Math.floor((Date.now() - new Date(current.setAt).getTime()) / 864e5) : null
+    return res.status(200).json({
+      configured: true,
+      override: current,
+      ageDays,
+      expired: current?.dial != null && ageDays != null ? ageDays >= 30 : undefined,
+      ttlDays: 30,
+    })
   }
 
   if (req.method !== 'POST') return res.status(405).json({ error: 'GET or POST' })

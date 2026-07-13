@@ -210,7 +210,28 @@ export default function Execution({ book, onRebalance, onReset, canTrade, ruinBr
                   ))}
                 </ul>
               ) : (
-                <p className="gear__note" style={{ margin: '0.25rem 0 0' }}>No trades — book already at target.</p>
+                <p className="gear__note" style={{ margin: '0.25rem 0 0' }}>Core: no trades — book already at target.</p>
+              )}
+              {e.credit?.pnl && (
+                <>
+                  <p className="gear__note" style={{ margin: '0.35rem 0 0' }}>
+                    <b>Cycle Credit book</b> · NAV {money(e.credit.pnl.navEnd)}
+                    <span className={e.credit.pnl.dayPnl >= 0 ? 'pos' : 'neg'}> · day P&amp;L {signed(e.credit.pnl.dayPnl)}</span>
+                    {' '}· sleeves {e.credit.pnl.sleeves.performing.weightPct}/{e.credit.pnl.sleeves.distressed.weightPct}/{e.credit.pnl.sleeves.powder.weightPct}
+                    {e.credit.pnl.sleeves.distressed.deployed ? ' · POWDER DEPLOYED' : ''}
+                  </p>
+                  {e.credit.orders?.length > 0 && (
+                    <ul className="gear__note" style={{ margin: '0.2rem 0 0', paddingLeft: '1.1rem' }}>
+                      {e.credit.orders.map((o) => (
+                        <li key={`${e.seq}-${o.id}`}>
+                          <span className={`mono ${o.side === 'BUY' ? 'pos' : 'neg'}`}>{o.side}</span>{' '}
+                          {o.name} {o.fromW}% → {o.toW}%
+                          {o.rationale && <div className="proxy__bounds">{o.rationale}</div>}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </>
               )}
             </div>
           ))}

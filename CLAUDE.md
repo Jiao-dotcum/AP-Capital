@@ -103,15 +103,28 @@ function. Never advance the world any other way.
     1.0×** — the dial no longer scales this book's gross (see "one factor,
     counted twice"); CVaR 95/99; drawdown de-risking schedule;
     block-bootstrap MC with named crisis replays.
+  - `pureAlpha.js` — the six principles as a REAL overlay: legs per
+    principle, each fired bet risk-balanced by its spread vol (same L–W
+    covariance as the risk desk), combined tilt scaled to `PA_VOL_TARGET`
+    (4% ann.) and gross-capped (0.5); `coreTargets(rp, tilt)` = the Core
+    book's actual target (long-only clamp, gross ≤ 1 — shorts only reduce
+    existing longs, no borrowing). Wired ONLY after clearing a
+    pre-registered 30-seed gate (standalone Sharpe 0.163; blend beat
+    rp-only 23/30, avg 0.313 → 0.358, +0.41pp maxDD). Re-tuning any
+    constant requires re-running that gate.
+  - `macroPath.js` — the one seeded macro walk (reading → cycle → returns,
+    fixed draw order) consumed by mandateBacktest and the PA gate;
+    `backtest.js` keeps its own verbatim copy as the frozen court record.
   - `backtest.js` — 22y walk-forward, rules frozen at T, graded at T+1;
     per-principle/regime/dial hit rates; turnover with/without deadband;
     exposes the monthly return `series` and `windowStats(series, years)` for
     the lookback slider.
-  - `mandateBacktest.js` — standalone return tracks for each mandate, one
-    seeded walk producing both series: Core from the real `buildRiskReport`
-    engine (fixed weights, no proxy), Credit from the full-rigor walk below,
-    blended by `creditWeightsFor(dial)` lagged one period, distressed sleeve
-    on the CLO BB proxy gated by the same deploy triggers.
+  - `mandateBacktest.js` — standalone return tracks for each mandate over
+    the shared `macroPath` walk: Core = the live formula (`coreTargets` of
+    risk parity + the PA tilt, lagged one period), Credit from the
+    full-rigor walk below blended by `creditWeightsFor(dial)` lagged one
+    period, distressed sleeve on the CLO BB proxy gated by the same deploy
+    triggers.
   - `creditBacktest.js` — the full-rigor credit walk
     (`docs/CREDIT_BACKTEST_SCOPE.md`): issuer fundamentals evolve monthly on
     their own per-issuer mulberry32 streams (Invariant 3), ratings actually
@@ -163,11 +176,19 @@ function. Never advance the world any other way.
   dial ratification, owner-only, append-only, recorded inside each run's
   sealed decision), `chain.js` (recomputes the whole hash chain;
   anchor its head externally to make tamper-evident into tamper-proof),
-  `journal.js` (the daily journal read endpoint). Each run also seals `pnl`
-  (day P&L attributed per asset, slippage split out) and `risk` (CVaR,
-  season shares, drawdown rung, crisis replays) and gives every order a
-  deterministic `rationale` written at planning time — the standing rules
-  live in `docs/RISK_POLICY.md`; cron fires 21:30 UTC weekdays (post-close).
+  `journal.js` (the daily journal read endpoint), `_lib/creditBook.js` (the
+  Cycle Credit mandate's own $1M live paper ledger: performing sleeve marks
+  off the real screen, distressed off the CLO proxy gated by triggers,
+  orders with second-level reasons; state persisted per run in
+  `credit_book`, P&L/orders sealed as the `credit` block). Each run seals
+  `pnl` (Core day P&L attributed per asset, slippage split out), `risk`
+  (CVaR, season shares, drawdown rung, crisis replays), and `credit`, and
+  gives every order a deterministic `rationale` written at planning time —
+  the standing rules live in `docs/RISK_POLICY.md`; cron fires 21:30 UTC
+  weekdays (post-close). Dial overrides expire after 30 days
+  (`OVERRIDE_TTL_DAYS` in ingest); `/api/state` carries a `stale` flag when
+  the latest run is > 4 days old. `docs/ENGINE_GUIDE.md` is the from-zero
+  reading guide for all of this.
 - `src/components/` — one component per section + `chrome.jsx` +
   `Tearsheet.jsx` (print-only investor page; disclaimer language is
   load-bearing — never weaken it).

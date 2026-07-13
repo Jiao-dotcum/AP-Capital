@@ -19,11 +19,16 @@ export default async function handler(req, res) {
     ])
     // Cache at the edge for a minute — the ingest runs at most daily.
     res.setHeader('Cache-Control', 's-maxage=60, stale-while-revalidate=600')
+    // Staleness alarm: the cron should land every trading day, so a latest
+    // run older than 4 days means the machine has silently stopped —
+    // surface it rather than letting the dashboard show old data as fresh.
+    const stale = run?.knownAt ? Date.now() - new Date(run.knownAt).getTime() > 4 * 864e5 : undefined
     return res.status(200).json({
       configured: true,
       ...(state || { empty: true }),
       prices: prices ?? undefined,
       run: run ?? undefined,
+      stale,
       fundamentals: fundamentals ?? undefined,
     })
   } catch (err) {

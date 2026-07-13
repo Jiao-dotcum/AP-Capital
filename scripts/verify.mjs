@@ -84,6 +84,9 @@ check('canonical run rebalance (marks off par) zero vetoes', run1.decision.vetoe
 check('hash chain verifies; tampered NAV breaks it',
   verifyChain([run1, run2]).ok && !verifyChain([{ ...run1, nav: run1.nav + 1 }, run2]).ok)
 check('every order journaled with a sealed rationale', run1.orders.every((o) => o.rationale && o.grade?.letter))
+check('credit paper book sealed in the run', run1.credit?.pnl?.navEnd > 0 && Array.isArray(run1.credit.orders))
+check('credit book NAV carried run to run', run2.credit.pnl.navStart === run1.credit.pnl.navEnd)
+check('decision records the PA overlay', Array.isArray(run1.decision.pureAlpha?.fired))
 check('P&L identity: start + day + cost = end',
   Math.abs(run1.pnl.navStart + run1.pnl.dayPnl + run1.pnl.tradingCost - run1.pnl.navEnd) < 0.02)
 check('risk statement sealed (CVaR, seasons, drawdown)',
@@ -105,6 +108,19 @@ check('credit walk realizes defaults', dg.defaults > 0, `${dg.defaults} defaults
 check('screen discriminates: rejected default rate ≥ held',
   dg.rejectedDefaults / dg.rejectedMonths >= dg.heldDefaults / dg.heldMonths,
   `held ${(dg.heldDefaults / dg.heldMonths * 1200).toFixed(1)}%/yr vs rejected ${(dg.rejectedDefaults / dg.rejectedMonths * 1200).toFixed(1)}%/yr`)
+
+// The Pure Alpha overlay: vol-targeted, gross-capped, long-only after the
+// clamp, and inert on a quiet (P·04) reading. It cleared a pre-registered
+// 30-seed gate before being wired into the live book — do not re-tune its
+// constants without re-running that gate (scratchpad pa-gate pattern).
+const { pureAlphaTilt, coreTargets, PA_MAX_GROSS } = await eng('pureAlpha.js')
+const paStag = pureAlphaTilt(-0.8, 0.9)
+check('pure alpha deterministic, capped, directionally right',
+  same(paStag, pureAlphaTilt(-0.8, 0.9)) && paStag.gross <= PA_MAX_GROSS + 1e-9 && paStag.tilt.gold > 0 && paStag.tilt.usEq < 0)
+check('pure alpha inert on quiet reading', pureAlphaTilt(0.1, -0.1).gross === 0)
+const ctv = coreTargets(rr1.rp.weights, paStag.tilt)
+check('core targets long-only, gross ≤ 1',
+  Object.values(ctv).every((w) => w >= 0) && Object.values(ctv).reduce((s, w) => s + w, 0) <= 1 + 1e-9)
 
 const disclaimers = execSync(`grep -ri "not investment advice" ${join(ROOT, 'src')} | wc -l`).toString().trim()
 check('disclaimers present (≥2)', Number(disclaimers) >= 2, `${disclaimers} found`)

@@ -22,7 +22,12 @@ decoupled structure won on volatility 25/30, max drawdown 24/30, and Sharpe
   *risk*, not capital, across Rising Growth, Falling Growth, Rising
   Inflation, and Falling Inflation. The check: season risk shares read
   ~25/25/25/25 every run (`risk.seasons` in the journal). No cycle timing,
-  no leverage that breathes — the dial has no authority here.
+  no leverage that breathes — the dial has no authority here. On top rides
+  the **Pure Alpha overlay**: the six written principles as a vol-targeted
+  tilt (4% annualized budget, gross ≤ 0.5, long-only after the clamp, total
+  book gross still ≤ 1). It was wired only after clearing a pre-registered
+  30-seed gate; re-tuning any of its constants requires re-running that
+  gate before the change trades.
 - **AP Cycle Credit (the Oaktree engine).** The Aggressiveness Dial (0–100,
   a percentile composite of seven credit-cycle proxies settled through a
   ±5-point deadband — Defense < 35, Neutral 35–65, Offense > 65) sizes ONLY
@@ -33,7 +38,9 @@ decoupled structure won on volatility 25/30, max drawdown 24/30, and Sharpe
   resume automatic. Every override is an append-only record, and the run
   that obeys it says so inside the sealed decision (`decision.dialOverride`).
   The override inherits the dial's scope: it moves the credit mandate, never
-  the Core.
+  the Core. **Overrides expire after 30 days** unless re-ratified — a pinned
+  dial is a decision, not a setting, and a forgotten one may not steer the
+  book indefinitely.
 - **Every order carries its reason.** Rationale is generated at planning
   time from the same state that produced the order (mandate, strategy,
   regime, target vs. current weight, unified grade) and sealed with the
@@ -79,9 +86,11 @@ Sealed into each journal record (`risk`):
 ## 5. Execution and P&L discipline
 
 - **Cadence**: one canonical rebalance per trading day, after US close
-  (21:30 UTC cron). No intraday trading. The canonical paper book is the
-  **All Weather Core mandate's** book; the credit mandate's screen and
-  powder posture are sealed in the decision but not yet routed to an OMS.
+  (21:30 UTC cron). No intraday trading. **Both mandates hold paper books**:
+  the Core's OMS book (risk parity + Pure Alpha overlay) and the Cycle
+  Credit ledger (performing screen + triggered distressed + powder, its own
+  $1M NAV) — each journals its own trades with reasons and its own daily
+  P&L, sealed in the same chained record.
 - **P&L is booked close-over-prior-close** — the full economic day including
   the overnight gap. Open→close is journaled alongside for the session tape.
   Attribution is per asset: the mark move on the position held *into* the
@@ -107,5 +116,3 @@ new records; nothing historical is ever rewritten.
 - Liquidity risk (all proxies are liquid ETFs by Charter; revisit before
   any less-liquid sleeve).
 - Counterparty/custody risk (no real broker yet).
-- Override expiry — a pinned dial currently stands until explicitly resumed;
-  a review-date discipline is recommended and not yet enforced in code.

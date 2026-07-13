@@ -5,9 +5,11 @@ import { UNIVERSE, CASH_RATE } from '../../src/engine/assets.js'
 import { regimeOf, riskOfRuin, RUIN_CEILING } from '../../src/engine/machine.js'
 import { postureOf, triggersFrom, deployAuthorized, houseView, creditWeightsFor } from '../../src/engine/cycle.js'
 import { buildRiskReport, DERISK_SCHEDULE, CORE_GROSS } from '../../src/engine/risk.js'
+import { pureAlphaTilt, coreTargets } from '../../src/engine/pureAlpha.js'
 import { gradeBook } from '../../src/engine/grades.js'
 import { initBook, markStep, reconcile, targetPositions, planOrders, execute, bookNav, LIMITS } from '../../src/engine/oms.js'
 import { sleeveReturns } from '../../src/engine/proxies.js'
+import { stepCreditBook } from './creditBook.js'
 
 // ————— Phase 2: the canonical server-side engine run —————
 // Each scheduled ingest with a fresh reading advances ONE canonical world —
@@ -57,6 +59,7 @@ export const payloadOf = (run) => ({
   // never had the keys at all.
   ...(run.pnl != null ? { pnl: run.pnl } : {}),
   ...(run.risk != null ? { risk: run.risk } : {}),
+  ...(run.credit != null ? { credit: run.credit } : {}),
 })
 
 // A repeat curl with identical FRED data must not append a duplicate run —
@@ -102,7 +105,11 @@ export function runEngineStep(prevRun, { reading, hyOasBp = null, knownAt, price
 
   const ruin = riskOfRuin(reading)
   const ruinBreached = ruin > RUIN_CEILING
-  const targets = targetPositions(marked, rp.weights)
+  // The Core book = risk parity + the Pure Alpha overlay (vol-targeted,
+  // long-only clamped, gross ≤ 1 — see pureAlpha.js). Gate evidence: blend
+  // beat rp-only Sharpe 23/30 seeds, avg 0.313 → 0.358, +0.41pp maxDD.
+  const pa = pureAlphaTilt(reading.g, reading.i)
+  const targets = targetPositions(marked, coreTargets(rp.weights, pa.tilt))
   const regime = regimeOf(reading)
   const posture = postureOf(dial)
 
@@ -117,10 +124,12 @@ export function runEngineStep(prevRun, { reading, hyOasBp = null, knownAt, price
     const targetW = wOf(targets[o.id] ?? 0, o.id)
     const g = grades[o.id]
     const capped = (rp.weights[o.id] ?? 0) * navPlan > LIMITS.maxName * navPlan - 1
+    const paPP = (pa.tilt[o.id] ?? 0) * 100
     const rationale =
       `${o.side} to move ${o.name} from ${(currentW * 100).toFixed(1)}% to ${(targetW * 100).toFixed(1)}% of NAV: ` +
       `All Weather Core mandate — four-season risk parity (standalone-vol equalization) at fixed ${CORE_GROSS.toFixed(1)}× gross, ` +
       `regime ${regime.label}. Unified grade ${g.letter} (${g.score}).` +
+      (Math.abs(paPP) >= 0.5 ? ` Pure Alpha tilt ${paPP > 0 ? '+' : '−'}${Math.abs(paPP).toFixed(1)}pp (${pa.fired.join(', ')}).` : '') +
       (capped ? ` Target clipped by the ${LIMITS.maxName * 100}% single-name cap.` : '') +
       (ruinBreached ? ' Ruin ceiling breached — reduce-only session.' : '')
     return { ...o, currentW, targetW, grade: { letter: g.letter, score: g.score }, rationale }
@@ -137,6 +146,7 @@ export function runEngineStep(prevRun, { reading, hyOasBp = null, knownAt, price
     sleeveWeights: houseView(dial), // firm five-sleeve view: Core fixed, credit dial-scoped, %
     creditSleeves: creditWeightsFor(dial), // [performing, distressed, powder] % of the credit mandate
     rpWeights: Object.fromEntries(Object.entries(rp.weights).map(([k, v]) => [k, +v.toFixed(4)])), // Core book, fraction of NAV
+    pureAlpha: { fired: pa.fired, gross: pa.gross, tilt: pa.tilt }, // the overlay actually traded
     gross: +rp.gross.toFixed(3), // fixed CORE_GROSS by construction
     triggersArmed: triggers.filter((t) => t.armed).map((t) => t.name),
     deploy: deployAuthorized(triggers),
@@ -204,6 +214,11 @@ export function runEngineStep(prevRun, { reading, hyOasBp = null, knownAt, price
     ruinCeiling: RUIN_CEILING,
   }
 
+  // ————— The Cycle Credit mandate's paper book, stepped on the same run —
+  // its own $1M NAV, trades with reasons, sealed alongside the Core's.
+  const creditStep = stepCreditBook(prevRun?.creditBook ?? null, { cycle: world.cycle, dial, dialOverride })
+  const credit = { pnl: creditStep.pnl, orders: creditStep.orders }
+
   const run = {
     seq: world.releaseN,
     knownAt,
@@ -214,8 +229,10 @@ export function runEngineStep(prevRun, { reading, hyOasBp = null, knownAt, price
     nav,
     pnl,
     risk,
+    credit,
     world,
     book,
+    creditBook: creditStep.book,
     prevHash: prevRun?.hash ?? null,
   }
   run.hash = runHash(run.prevHash, payloadOf(run))

@@ -18,6 +18,7 @@ import { scanCatalysts } from './engine/sourcing.js'
 import { memoFrom, quarterLabel } from './engine/firm.js'
 import { runBacktest } from './engine/backtest.js'
 import { runMandateBacktests } from './engine/mandateBacktest.js'
+import { pureAlphaTilt, coreTargets } from './engine/pureAlpha.js'
 import { gradeBook } from './engine/grades.js'
 import { buildRiskReport } from './engine/risk.js'
 import {
@@ -343,7 +344,9 @@ export default function App() {
   // configured) — then plan orders and run each through pre-trade compliance.
   const rebalance = () => {
     if (!riskReport) return
-    const weights = { ...riskReport.rp.weights }
+    // Risk parity + the Pure Alpha overlay — the same coreTargets the server's
+    // canonical run trades (one formula, one module).
+    const weights = coreTargets(riskReport.rp.weights, pureAlphaTilt(current.g, current.i).tilt)
     const real = sleeveReturns(livePrices)
     const modeled = markStep(current)
     const markReturns = real ? { ...modeled, ...real } : modeled
@@ -591,10 +594,10 @@ export default function App() {
           <MandateTrack
             id="core"
             title="AP All Weather Core — Standalone Track"
-            engine="Real production engine"
+            engine="Risk parity + Pure Alpha overlay"
             series={mandateBT.core}
             accent="var(--wedgwood)"
-            note="Fixed risk-parity weights (no dial input) applied to the actual UNIVERSE factor returns — this is the same code that runs live, not a proxy."
+            note="The exact live formula: fixed risk-parity weights plus the vol-targeted Pure Alpha overlay (coreTargets — one formula, one module). The overlay cleared a pre-registered gate before being wired: blend beat rp-only Sharpe on 23 of 30 seeds (avg 0.31 → 0.36) at +0.4pp of drawdown."
           />
           <MandateTrack
             id="credit"

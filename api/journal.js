@@ -23,7 +23,8 @@ export default async function handler(req, res) {
         nav: r.nav,
         pnl: r.pnl ?? null,
         decision: r.decision,
-        trades: r.orders, // side/qty/fill + grade + rationale, as sealed
+        trades: r.orders, // Core book: side/qty/fill + grade + rationale, as sealed
+        credit: r.credit ?? null, // Cycle Credit book: { pnl, orders }, as sealed
         risk: r.risk ?? null,
         hash: r.hash,
       }))
