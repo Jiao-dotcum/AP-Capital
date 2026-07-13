@@ -292,6 +292,17 @@ unless it follows the rule.
   ×100 to bp. CPI YoY needs the observation ~365 days before the latest, not
   a fixed row offset. → *Rule: every new data series gets its units written
   down at the parse site and a plausibility clamp (`plausible(v, lo, hi)`).*
+- **The Infinity leverage.** Ford Motor's live EDGAR pull returned
+  leverage ≈ 0.0× (a debt fallback tag almost certainly picked up a partial
+  balance, not total debt), and `mertonDtD` divides `mult/lev` — a
+  near-zero denominator sent distance-to-default to Infinity, cascading to
+  PD≈0.01% and expected loss≈0bp for a real leveraged issuer, with no
+  thrown error. → *Rule: `deriveFundamentals` (`src/live/edgar.js`) now
+  clamps leverage to a plausibility floor (0.3×) before it reaches the
+  structural model — a high-yield-ish benchmark issuer under that floor
+  fails loud (`edgarIssuerErrors`) instead of silently producing a
+  garbage DtD. Same discipline as the FRED plausibility clamp above,
+  applied to XBRL debt tags.*
 - **The pasted secret.** A live database connection string was once pasted
   into chat. → *Rule: secrets go directly into the Vercel env UI, never into
   chat, code, or commits. If one is exposed, rotate it immediately. Neon

@@ -188,7 +188,19 @@ export function deriveFundamentals(issuer, facts) {
   }
   const ebitda = opInc + da
   const cov = +(opInc / interest).toFixed(1)
-  const lev = ebitda > 0 ? +(debt / ebitda).toFixed(1) : 99
+  const rawLev = ebitda > 0 ? debt / ebitda : Infinity
+  // Confirmed in production (2026-07-13, Ford Motor): one of the debt
+  // fallback tags returned a partial balance (a single tranche, not total
+  // debt), so lev rounded to 0.0x. mertonDtD divides mult/lev, so a
+  // near-zero lev sends V/D — and DtD — to Infinity, silently producing a
+  // PD of 0.01% and an expected loss of 0bp for a real leveraged issuer.
+  // Fail loud instead of feeding the model a denominator near zero; a
+  // High-yield-ish benchmark issuer with lev < 0.3x is a data error, not
+  // a real signal, until a specific mistagged concept is identified.
+  if (Number.isFinite(rawLev) && rawLev < 0.3) {
+    throw new Error(`implausible leverage (${rawLev.toFixed(2)}x) — debt tag likely partial`)
+  }
+  const lev = ebitda > 0 ? +rawLev.toFixed(1) : 99
   const model = { ...issuer, cov, lev }
   const dd = mertonDtD(model, 1)
   const pd = pdFromDtD(dd)
