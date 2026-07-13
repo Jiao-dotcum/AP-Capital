@@ -35,8 +35,10 @@ decoupled structure won on volatility 25/30, max drawdown 24/30, and Sharpe
   and dry powder (`creditWeightsFor`). Defense hoards powder; offense
   deploys into despair. The performing sleeve's screen (`screenPerforming`)
   trades ten simulated issuers extended, since 2026-07-13, by real,
-  live-verified names (Ford, Carnival, Occidental) whenever SEC EDGAR
-  filings and Alpaca equity price history both clear every gate — see
+  live-verified names (Ford, Carnival, Occidental, American Airlines,
+  Charter Communications, Macy's, Freeport-McMoRan, Community Health
+  Systems — `BENCHMARKS`, `src/live/edgar.js`) whenever SEC EDGAR filings
+  and Alpaca equity price history both clear every gate — see
   `docs/ENGINE_GUIDE.md` §6 for the KMV methodology. A name that fails to
   clear is excluded from the traded book, never estimated.
 - **Human ratification (the override)** may pin the dial at any value or

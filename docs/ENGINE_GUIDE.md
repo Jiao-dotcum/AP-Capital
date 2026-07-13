@@ -175,9 +175,24 @@ always at least as volatile as the assets beneath it) excludes that name
 from the traded book for that run rather than trading on a garbage number.
 Excluded names and why are in `/api/ingest`'s `realIssuerErrors`.
 
-Starting scope (owner-decided, 2026-07-13): the three names EDGAR already
-covers — Ford, Carnival, Occidental. A name can also legitimately LEAVE the
-traded universe (its data source stops returning it) — something the fixed
-ten simulated names could never do, which is why `stepCreditBook`'s P&L
-loop had to be hardened for a missing current-screen row (see CLAUDE.md,
-"the universe that used to be fixed").
+The roster (`BENCHMARKS`, `src/live/edgar.js`), as of 2026-07-13: Ford
+(Autos), Carnival (Lodging & Gaming), Occidental (Energy), American
+Airlines Group (Transport), Charter Communications (Communications),
+Macy's (Retail), Freeport-McMoRan (Materials), Community Health Systems
+(Healthcare) — 8 names spanning 8 sectors and a real quality range (FCX
+Baa3 near investment grade down through CYH B3, genuinely distressed:
+CYH's own numbers show a NEGATIVE distance-to-default even on the offline
+estimates, which the screen's hard gates should reject rather than
+silently include). CIKs confirmed against SEC EDGAR company search;
+ratings are Moody's corporate family ratings researched at the same
+date — metadata this pipeline does NOT refresh itself, so it goes stale
+between manual updates, same as `recovery` (still a sector-convention
+estimate, not filed or observed — the one item in §4's original TODO list
+still open). Adding a name is a one-line addition to `BENCHMARKS`; nothing
+else in the pipeline is issuer-count-specific.
+
+A name can also legitimately LEAVE the traded universe (its data source
+stops returning it) — something the fixed ten simulated names could never
+do, which is why `stepCreditBook`'s P&L loop had to be hardened for a
+missing current-screen row (see CLAUDE.md, "the universe that used to be
+fixed").

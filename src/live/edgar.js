@@ -8,13 +8,26 @@ import { mertonDtD, pdFromDtD, migrationOf } from '../engine/credit.js'
 // leverage come from the filings; distance-to-default, PD, and expected loss
 // run through the same structural model as the simulated desk.
 
-// A handful of real, liquid high-yield-ish benchmark issuers. CIKs are public.
-// cov/lev are offline estimates so the panel renders before any live pull; a
-// successful EDGAR fetch overwrites them with the values from the filings.
+// Real, liquid high-yield-ish benchmark issuers. CIKs are public, confirmed
+// against SEC EDGAR company search (2026-07-13). `rating` is each issuer's
+// approximate current Moody's corporate family rating researched at the
+// same date — metadata, not something this pipeline derives or refreshes
+// itself, so it WILL go stale between manual updates, same as `recovery`
+// (a sector-convention estimate, not filed or market-observed — see
+// docs/ENGINE_GUIDE.md §6 for what's still owed here). cov/lev/mult/av are
+// offline estimates so the panel and the traded book render before any live
+// pull; a successful EDGAR+Alpaca pull (api/_lib/realIssuers.js) overwrites
+// cov/lev from the filing and mult/av from KMV-unlevering real market data —
+// see buildRealIssuer, engine/credit.js.
 export const BENCHMARKS = [
   { ticker: 'F', cik: '0000037996', name: 'Ford Motor', sector: 'Autos', rating: 'Ba1', recovery: 55, mult: 7.5, av: 0.26, cov: 3.4, lev: 4.6 },
   { ticker: 'CCL', cik: '0000815097', name: 'Carnival', sector: 'Lodging & Gaming', rating: 'B1', recovery: 48, mult: 8.4, av: 0.34, cov: 2.5, lev: 5.4 },
   { ticker: 'OXY', cik: '0000797468', name: 'Occidental Petroleum', sector: 'Energy', rating: 'Ba1', recovery: 62, mult: 6.8, av: 0.30, cov: 4.1, lev: 3.3 },
+  { ticker: 'AAL', cik: '0000006201', name: 'American Airlines Group', sector: 'Transport', rating: 'B1', recovery: 45, mult: 6.5, av: 0.40, cov: 2.0, lev: 4.8 },
+  { ticker: 'CHTR', cik: '0001091667', name: 'Charter Communications', sector: 'Communications', rating: 'Ba2', recovery: 55, mult: 8.0, av: 0.32, cov: 2.8, lev: 4.3 },
+  { ticker: 'M', cik: '0000794367', name: "Macy's", sector: 'Retail', rating: 'Ba1', recovery: 40, mult: 6.0, av: 0.42, cov: 3.0, lev: 2.8 },
+  { ticker: 'FCX', cik: '0000831259', name: 'Freeport-McMoRan', sector: 'Materials', rating: 'Baa3', recovery: 50, mult: 7.5, av: 0.38, cov: 5.5, lev: 1.6 },
+  { ticker: 'CYH', cik: '0001108109', name: 'Community Health Systems', sector: 'Healthcare', rating: 'B3', recovery: 35, mult: 7.0, av: 0.55, cov: 1.3, lev: 6.5 },
 ]
 
 // Compute the derived row (DtD, PD, EL) from an issuer's cov/lev — used to
