@@ -185,12 +185,10 @@ export function deriveFundamentals(issuer, facts) {
   // the same economic quantity safely — revenue and total costs/expenses
   // are both conventionally positive with no sign ambiguity, unlike a net-
   // interest fallback (deliberately not added; see below).
-  if (!opIncObs) {
-    const revObs = latestAnnualObs(facts, ['Revenues', 'RevenueFromContractWithCustomerExcludingAssessedTax'])
-    const costObs = latestAnnualObs(facts, ['CostsAndExpenses'])
-    if (revObs && costObs && revObs.end === costObs.end) {
-      opIncObs = { val: revObs.val - costObs.val, end: revObs.end }
-    }
+  const revObs = latestAnnualObs(facts, ['Revenues', 'RevenueFromContractWithCustomerExcludingAssessedTax'])
+  const costObs = latestAnnualObs(facts, ['CostsAndExpenses'])
+  if (!opIncObs && revObs && costObs && revObs.end === costObs.end) {
+    opIncObs = { val: revObs.val - costObs.val, end: revObs.end }
   }
   const opInc = opIncObs?.val ?? null
   const interest = latestAnnual(facts, ['InterestExpense', 'InterestExpenseDebt', 'InterestAndDebtExpense'])
@@ -206,7 +204,24 @@ export function deriveFundamentals(issuer, facts) {
   ])
   const da = latestAnnual(facts, ['DepreciationDepletionAndAmortization', 'DepreciationAmortizationAndAccretionNet', 'DepreciationAndAmortization']) || 0
   if (!Number.isFinite(opInc) || !Number.isFinite(interest) || !Number.isFinite(debt) || interest <= 0) {
-    throw new Error('required XBRL facts missing')
+    // "required XBRL facts missing" told us nothing on its own — hit twice
+    // in production (Occidental, then Chemours) with no way to tell WHICH
+    // fact from outside (data.sec.gov itself is blocked from this dev
+    // sandbox; see CLAUDE.md "the sandbox 403"). Enumerate exactly what's
+    // missing so the next live ingest response is self-diagnosing, no SEC
+    // access required to read it.
+    const missing = []
+    if (!Number.isFinite(opInc)) {
+      missing.push(
+        `operating income (OperatingIncomeLoss: ${opIncObs ? 'found' : 'missing'}; ` +
+          `fallback Revenues: ${revObs ? `found @${revObs.end}` : 'missing'}, ` +
+          `CostsAndExpenses: ${costObs ? `found @${costObs.end}` : 'missing'})`,
+      )
+    }
+    if (!Number.isFinite(interest)) missing.push('interest expense (no InterestExpense/InterestExpenseDebt/InterestAndDebtExpense tag)')
+    else if (interest <= 0) missing.push(`interest expense non-positive (${interest})`)
+    if (!Number.isFinite(debt)) missing.push('debt (no matching tag among the 5 candidates)')
+    throw new Error(`required XBRL facts missing: ${missing.join('; ')}`)
   }
   const ebitda = opInc + da
   const cov = +(opInc / interest).toFixed(1)
