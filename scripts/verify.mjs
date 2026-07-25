@@ -189,6 +189,30 @@ delete legacyRun.decision.marksSource
 legacyRun.hash = runHash(null, payloadOf(legacyRun))
 check('pre-fingerprint runs still verify (no retroactive chain break)', verifyChain([legacyRun]).ok)
 
+// ————— External anchor: pure transforms + guarded degradation —————
+// The network path is exercised against a stubbed fetch in the scratchpad
+// (github.com is unreachable from this sandbox); what must hold here is that
+// the log is append-only, idempotent on an unchanged head, and inert when
+// unconfigured.
+const anchor = await import(join(ROOT, 'api/_lib/anchor.js'))
+const savedTok = process.env.GITHUB_TOKEN
+const savedRepo = process.env.ANCHOR_REPO
+delete process.env.GITHUB_TOKEN
+delete process.env.ANCHOR_REPO
+check('anchor no-ops when unconfigured', anchor.anchorConfigured() === false)
+check('unconfigured anchor returns {configured:false}',
+  same(await anchor.anchorChainHead({ seq: 1, hash: 'abc' }), { configured: false }))
+if (savedTok !== undefined) process.env.GITHUB_TOKEN = savedTok
+if (savedRepo !== undefined) process.env.ANCHOR_REPO = savedRepo
+const aLog = '{"anchoredAt":"2026-07-20T00:00:00Z","seq":10,"head":"aaa"}\n'
+const aRec = anchor.anchorRecord({ seq: 11, hash: 'bbb', knownAt: new Date('2026-07-21T00:00:00Z') }, new Date('2026-07-21T01:00:00Z'))
+check('anchor record carries the head hash and ISO dates', aRec.head === 'bbb' && aRec.knownAt === '2026-07-21T00:00:00.000Z')
+check('anchor log append is strictly additive',
+  anchor.appendAnchorLine(aLog, aRec).startsWith(aLog) && anchor.appendAnchorLine(aLog, aRec).endsWith('\n'))
+check('anchor reads back the last head (idempotency input)',
+  anchor.lastAnchoredHead(anchor.appendAnchorLine(aLog, aRec)) === 'bbb')
+check('anchor survives a corrupt trailing line', anchor.lastAnchoredHead(`${aLog}{oops`) === 'aaa')
+
 const mbt1 = runMandateBacktests()
 check('mandate backtests deterministic', same(mbt1, runMandateBacktests()))
 check('mandate backtests: 264 months each, no NaN/Infinity',

@@ -4,6 +4,7 @@ import { marketConfigured, fetchPrices } from './_lib/marketdata.js'
 import { secConfigured, fetchFundamentals } from './_lib/edgar.js'
 import { buildRealIssuers } from './_lib/realIssuers.js'
 import { runEngineStep, unchangedSinceRun } from './_lib/engine.js'
+import { anchorConfigured, anchorChainHead } from './_lib/anchor.js'
 import {
   configured,
   ensureSchema,
@@ -173,6 +174,21 @@ export default async function handler(req, res) {
     } catch (err) {
       out.ok = false
       out.engineError = String(err.message || err)
+    }
+  }
+
+  // External anchor: commit the chain head to a repo we don't control, so
+  // the head hash is timestamped by a third party and cannot be backdated.
+  // Runs AFTER the engine step (it anchors whatever the head now is) and in
+  // its own try/catch — an anchoring failure is a publishing problem, never
+  // a reason to fail the run that produced the data.
+  out.anchorConfigured = anchorConfigured()
+  if (configured() && anchorConfigured()) {
+    try {
+      const head = await getLatestRun()
+      out.anchor = await anchorChainHead(head)
+    } catch (err) {
+      out.anchorError = String(err.message || err)
     }
   }
 

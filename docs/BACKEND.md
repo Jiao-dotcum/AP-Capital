@@ -181,6 +181,48 @@ value/vol to unlever; Alpaca without EDGAR has prices but no debt/EBITDA.
 Look for `"realIssuersTraded"` (the names that made it in) and
 `"realIssuerErrors"` (names that didn't, and why) in the ingest response.
 
+### The external anchor — turning tamper-evident into tamper-proof
+
+The hash chain proves the record is internally consistent. It cannot prove
+the record is *old*, because we own the database — a skeptic can always say
+the whole history was regenerated last night. Anchoring fixes that by
+committing the chain's head hash to a repository we don't control, where
+GitHub timestamps the commit server-side. A commit cannot be backdated on
+someone else's server.
+
+1. **Create a public repo** for the anchors (e.g. `ap-capital-anchors`).
+   Public matters — the point is that anyone can check it. It holds only
+   hashes, no positions or P&L.
+2. **Create a fine-grained personal access token** (GitHub → Settings →
+   Developer settings → Personal access tokens → Fine-grained). Scope it to
+   *only* that one repo, with **Contents: Read and write**. Nothing else.
+3. **Set two env vars** in Vercel (Production):
+   - `GITHUB_TOKEN` — the token
+   - `ANCHOR_REPO` — `youruser/ap-capital-anchors`
+   - (optional) `ANCHOR_PATH` — defaults to `anchors/chain.jsonl`
+4. **Redeploy**, then run the ingest. Look for
+   `"anchor": { "anchored": true, "commit": "...", "url": "..." }`.
+   An unchanged chain head anchors nothing (`"anchored": false,
+   "reason": "head unchanged since last anchor"`) — the log records distinct
+   chain states, not invocations.
+
+**How someone verifies you without trusting you:**
+
+```
+GET /api/chain          → recomputes every link, reports head + where the anchor lives
+open the anchor repo    → find the entry dated before today
+compare the head hashes
+```
+
+Step one proves internal consistency; step two proves age. A rewritten
+history cannot reproduce a head hash already committed to GitHub last month.
+`/api/chain` deliberately reports *where* the anchor is rather than claiming
+it agrees — a self-reported "verified: true" would prove nothing.
+
+The anchor runs in its own try/catch after the engine step: a publishing
+failure never fails the run that produced the data, and surfaces as
+`anchorError`.
+
 ### The dial override (human ratification, canonical)
 
 The Charter's human override now binds the canonical run, not just one

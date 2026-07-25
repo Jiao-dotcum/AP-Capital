@@ -204,6 +204,12 @@ function. Never advance the world any other way.
   dial ratification, owner-only, append-only, recorded inside each run's
   sealed decision), `chain.js` (recomputes the whole hash chain;
   anchor its head externally to make tamper-evident into tamper-proof),
+  `_lib/anchor.js` (**the external anchor**: commits the chain head hash to
+  a repo we don't control via the GitHub Contents API, so a third party
+  timestamps it and history can't be backdated; gated on `GITHUB_TOKEN` +
+  `ANCHOR_REPO`, append-only JSONL, idempotent — an unchanged head commits
+  nothing — and it claims only "this head existed at this time", never that
+  the chain is valid, which `/api/chain` proves independently),
   `journal.js` (the daily journal read endpoint), `_lib/creditBook.js` (the
   Cycle Credit mandate's own $1M live paper ledger: performing sleeve marks
   off the real screen — now `tradedIssuers(world.realIssuers)`, real names
