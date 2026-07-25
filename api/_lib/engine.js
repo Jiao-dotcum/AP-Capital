@@ -63,15 +63,51 @@ export const payloadOf = (run) => ({
   ...(run.credit != null ? { credit: run.credit } : {}),
 })
 
-// A repeat curl with identical FRED data must not append a duplicate run —
-// the chain records decisions, not invocations. A changed dial override IS a
-// decision (the human ratified something new), so it appends even when the
-// macro data hasn't moved.
-export const unchangedSinceRun = (prevRun, { reading, hyOasBp = null, dialOverride = null }) =>
-  Boolean(prevRun) &&
-  stableStringify(prevRun.reading) === stableStringify(reading) &&
-  (prevRun.hyOasBp ?? null) === (hyOasBp ?? null) &&
-  (prevRun.decision?.dialOverride ?? null) === (dialOverride ?? null)
+// A short, stable fingerprint of the exact price map used to mark the book.
+// Sealed inside `decision` (not as a new top-level field) deliberately: the
+// decision block is JSONB stored and read back wholesale, so it survives the
+// database round-trip with no schema change and no db.js edit — and a run
+// stored BEFORE this field existed simply lacks the key, which
+// stableStringify skips, so every historical hash still verifies.
+export const priceFingerprint = (prices) =>
+  prices && Object.keys(prices).length
+    ? createHash('sha256').update(stableStringify(prices)).digest('hex').slice(0, 16)
+    : null
+
+// The set of real issuers actually traded, order-independent — the identity
+// that matters for "did the traded universe change", ignoring daily drift in
+// any single name's KMV-derived numbers.
+const realIssuerKey = (rows) =>
+  (rows ?? [])
+    .map((r) => r.id)
+    .sort()
+    .join(',')
+
+// A repeat curl with identical inputs must not append a duplicate run — the
+// chain records decisions, not invocations. Four things count as a new
+// decision:
+//   1. the FRED reading or the spread moved (the macro input changed);
+//   2. the dial override changed (a human ratified something new);
+//   3. the SET of real issuers changed — the desk's traded universe is
+//      different, which is a decision even if the macro is quiet (this is
+//      also what lets the real desk activate the same day EDGAR + Alpaca
+//      first both clear, instead of waiting for the next FRED print);
+//   4. the closes moved — a trading day where the market moved but FRED was
+//      quiet still produced real P&L, and a daily journal that skips it has
+//      a hole in it. Gated on the fingerprint, so re-curling the SAME closes
+//      still appends nothing.
+// A null realIssuers/prices means "not fetched this run" (unconfigured, or a
+// transient failure), never "changed to empty" — those carry forward.
+export const unchangedSinceRun = (prevRun, { reading, hyOasBp = null, dialOverride = null, prices = null, realIssuers = null }) => {
+  if (!prevRun) return false
+  if (stableStringify(prevRun.reading) !== stableStringify(reading)) return false
+  if ((prevRun.hyOasBp ?? null) !== (hyOasBp ?? null)) return false
+  if ((prevRun.decision?.dialOverride ?? null) !== (dialOverride ?? null)) return false
+  if (realIssuers && realIssuerKey(realIssuers) !== realIssuerKey(prevRun.decision?.realIssuers)) return false
+  const fp = priceFingerprint(prices)
+  if (fp && fp !== (prevRun.decision?.priceFingerprint ?? null)) return false
+  return true
+}
 
 // Advance the canonical world + book by one reading and seal the record.
 // Pure and deterministic: same prevRun + same inputs ⇒ byte-identical run.
@@ -173,6 +209,12 @@ export function runEngineStep(prevRun, { reading, hyOasBp = null, knownAt, price
       lev: r.lev, cov: r.cov, mult: r.mult, av: r.av, price: r.price,
       source: r.source, fiscalEnd: r.fiscalEnd ?? null, priceAsOf: r.priceAsOf ?? null,
     })),
+    // The exact closes this run marked against — what unchangedSinceRun
+    // compares to decide whether a quiet-macro day still deserves a record.
+    // Null when the price feed is unconfigured (the book marked on the
+    // factor model), which never counts as a change.
+    priceFingerprint: priceFingerprint(prices),
+    marksSource: real ? 'live-closes' : 'factor-model',
   }
 
   // ————— Daily P&L attribution. dayPnl per asset is the mark move on the

@@ -111,7 +111,17 @@ endpoints).
 6. Both books' P&L, the risk statement (CVaR, seasons, drawdown rung), and
    every trade with its reason are sealed:
    `hash = sha256(prevHash | canonical-JSON(payload))` → appended to
-   `engine_runs`. A repeat run with unchanged data appends nothing.
+   `engine_runs`. **What counts as a new decision** (`unchangedSinceRun`):
+   the macro reading or spread moved, the dial override changed, the SET of
+   real issuers changed, or the closes moved. That last two matter — the
+   traded universe changing is a decision even on a quiet macro day (it's
+   also what lets the real desk activate the same day EDGAR + Alpaca first
+   both clear, rather than waiting on the next FRED print), and a trading
+   day where the market moved but FRED was silent still produced real P&L
+   that a daily journal must not skip. Re-curling the SAME closes appends
+   nothing — the gate is a fingerprint of the price map
+   (`decision.priceFingerprint`), so the chain still records decisions, not
+   invocations.
 7. The dashboard reads `/api/state` and `/api/journal` on load — no keys, no
    clicks. `/api/chain` re-verifies every link on demand.
 

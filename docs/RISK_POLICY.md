@@ -99,7 +99,11 @@ Sealed into each journal record (`risk`):
   the Core's OMS book (risk parity + Pure Alpha overlay) and the Cycle
   Credit ledger (performing screen + triggered distressed + powder, its own
   $1M NAV) — each journals its own trades with reasons and its own daily
-  P&L, sealed in the same chained record.
+  P&L, sealed in the same chained record. A day is journaled when the macro
+  reading moved, the dial override changed, the traded universe changed, OR
+  the closes moved — so a trading day with real P&L is never skipped merely
+  because FRED was quiet, while re-running the ingest on identical inputs
+  still appends nothing.
 - **P&L is booked close-over-prior-close** — the full economic day including
   the overnight gap. Open→close is journaled alongside for the session tape.
   Attribution is per asset: the mark move on the position held *into* the

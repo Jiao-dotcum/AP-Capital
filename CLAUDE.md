@@ -184,8 +184,15 @@ function. Never advance the world any other way.
   `_lib/engine.js` (**Phase 2 — the canonical run**: advances ONE server-side
   world through the same `advanceWorld`, rebalances ONE canonical paper book,
   seals each record with `hash = sha256(prevHash | canonical-JSON(payload))`;
-  `verifyChain` recomputes every link; a repeat ingest with unchanged FRED
-  data appends nothing — the chain records decisions, not curls),
+  `verifyChain` recomputes every link; `unchangedSinceRun` appends when the
+  macro reading/spread moved, the dial override changed, the SET of real
+  issuers changed, or the closes moved — re-curling identical inputs appends
+  nothing, so the chain records decisions, not curls. The price gate is a
+  fingerprint sealed at `decision.priceFingerprint`; it lives INSIDE the
+  JSONB `decision` (not a new column) so it round-trips with no schema
+  change, and runs sealed before it existed simply lack the key and still
+  verify — adding it as a top-level field would have silently broken every
+  historical hash),
   `_lib/edgar.js` (SEC XBRL fundamentals server-side, gated on
   `SEC_USER_AGENT` — SEC wants an identifying UA, not a key; reuses the
   client's `deriveFundamentals` verbatim), `override.js` (the Charter's human

@@ -99,7 +99,7 @@ check('routine OMS rebalance has zero vetoes', vetoed === 0, `${vetoed} vetoed`)
 // chained records. run1 reconciles marks off par BEFORE rebalancing — the
 // boundary case a fresh-book rebalance never exercises (a cap-clipped target
 // plus 2dp order rounding must not trip a false preTrade veto).
-const { runEngineStep, verifyChain } = await import(join(ROOT, 'api/_lib/engine.js'))
+const { runEngineStep, verifyChain, unchangedSinceRun, payloadOf, runHash } = await import(join(ROOT, 'api/_lib/engine.js'))
 const in1 = { reading: { g: 0.5, i: -0.3, source: 'live' }, hyOasBp: 350, knownAt: '2026-01-01T00:00:00.000Z', prices: null }
 const run1 = runEngineStep(null, in1)
 const run2 = runEngineStep(run1, { reading: { g: -0.2, i: 0.4, source: 'live' }, hyOasBp: 410, knownAt: '2026-01-02T00:00:00.000Z', prices: null })
@@ -133,6 +133,31 @@ const runR2null = runEngineStep(runR1, { reading: run2.reading, hyOasBp: run2.hy
 check('null realIssuers carries the previous run forward', runR2null.world.realIssuers.length === 1)
 const runR2clear = runEngineStep(runR1, { reading: run2.reading, hyOasBp: run2.hyOasBp, knownAt: '2026-01-02T00:00:00.000Z', prices: null, realIssuers: [] })
 check('explicit [] clears the real book (no crash when a name exits the universe)', runR2clear.world.realIssuers.length === 0)
+
+// ————— Chain gating: what counts as a new decision worth appending —————
+// The chain must record a decision but ignore a mere re-invocation. Four
+// triggers append (macro moved / override changed / traded universe changed /
+// closes moved); re-curling identical inputs must not. Nulls mean "not
+// fetched this run", never "changed to empty".
+const pxA = { SPY: { close: 500, prevClose: 498, change: 0.4, asof: '2026-01-01' } }
+const pxB = { SPY: { close: 505, prevClose: 500, change: 1.0, asof: '2026-01-02' } }
+const gIn = { ...in1, prices: pxA, realIssuers: [realFixtureRow] }
+const gRun = runEngineStep(null, gIn)
+check('price fingerprint sealed in the decision', typeof gRun.decision.priceFingerprint === 'string' && gRun.decision.marksSource === 'live-closes')
+check('identical repeat curl appends nothing', unchangedSinceRun(gRun, gIn) === true)
+check('traded universe change appends (real desk activates same day)',
+  unchangedSinceRun(gRun, { ...gIn, realIssuers: [] }) === false)
+check('closes moving on a quiet-macro day appends (no hole in the journal)',
+  unchangedSinceRun(gRun, { ...gIn, prices: pxB }) === false)
+check('null prices/realIssuers are not treated as a change',
+  unchangedSinceRun(gRun, { ...gIn, prices: null }) === true && unchangedSinceRun(gRun, { ...gIn, realIssuers: null }) === true)
+// The trap this whole design avoids: a run sealed BEFORE priceFingerprint
+// existed lacks the key, and its historical hash must still recompute.
+const legacyRun = runEngineStep(null, { ...in1, prices: null, realIssuers: null })
+delete legacyRun.decision.priceFingerprint
+delete legacyRun.decision.marksSource
+legacyRun.hash = runHash(null, payloadOf(legacyRun))
+check('pre-fingerprint runs still verify (no retroactive chain break)', verifyChain([legacyRun]).ok)
 
 const mbt1 = runMandateBacktests()
 check('mandate backtests deterministic', same(mbt1, runMandateBacktests()))
