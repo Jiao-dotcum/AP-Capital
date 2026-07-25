@@ -6,87 +6,345 @@
 <title>AP Credit Cycle Index (APCCI)</title>
 <meta name="description" content="A daily, rules-based index of where the US credit cycle stands, 0 (froth) to 100 (despair). Public methodology, recomputable from FRED." />
 <style>
+  /* ————— The Cathedral of the Cycle —————
+     Gothic chrome, legible data. Every decorative element is inline SVG or a
+     data-URI pattern: literal hex colours (CSS vars do NOT resolve inside a
+     data URI), %23 for #, and url("...") always double-quoted — the three
+     ways the motif silently broke before. */
   :root{
-    --stone:#fbfaf7; --ink:#1c1b18; --bronze:#57534a; --limestone:#8a857a;
-    --wedgwood:#3e5c76; --laurel:#6e7f58; --terracotta:#8c3b2e; --gilt:#a69258;
+    --night:#0b0c0f;        /* nave at midnight */
+    --stone:#15171c;        /* dressed stone, panel fill */
+    --stone-2:#1c1f26;      /* lighter course */
+    --mortar:#2a2e38;       /* joint / hairline */
+    --chalk:#e8e3d6;        /* limewash — primary text */
+    --ash:#9aa0ab;          /* secondary text */
+    --shadow:#6a7080;       /* muted */
+    --gilt:#c8a24c;         /* candle gold — rules and small marks only */
+    --gilt-dim:#8a6f34;
+    --rose:#7d3b34;         /* rose-window red */
+    --verdigris:#4e7a6a;    /* aged copper */
     --font-display:'Playfair Display','Didot','Bodoni MT','Times New Roman',serif;
     --font-body:'Source Serif 4',Georgia,'Times New Roman',serif;
     --font-mono:'IBM Plex Mono','Menlo','Courier New',monospace;
   }
   *{box-sizing:border-box}
-  body{margin:0;background:#f2efe9;color:var(--ink);font-family:var(--font-body);line-height:1.55}
-  .wrap{max-width:60rem;margin:0 auto;padding:2.5rem 1.25rem 4rem}
-  .rule{height:2px;background:var(--wedgwood);margin-bottom:2rem}
-  h1{font-family:var(--font-display);font-size:2.1rem;margin:0 0 .25rem;letter-spacing:.01em}
-  .sub{color:var(--bronze);margin:0 0 2rem;font-size:.98rem}
-  .panel{background:var(--stone);border:1px solid #e2ddd2;padding:1.5rem;margin-bottom:1.5rem}
-  h2{font-family:var(--font-display);font-size:1.15rem;margin:0 0 .75rem;font-weight:600}
-  .value{font-family:var(--font-mono);font-size:4.2rem;line-height:1;letter-spacing:-.02em}
-  .band{font-family:var(--font-mono);font-size:.85rem;text-transform:uppercase;letter-spacing:.14em;margin-top:.6rem}
-  .asof{color:var(--limestone);font-family:var(--font-mono);font-size:.78rem;margin-top:.5rem}
-  .note{color:var(--bronze);font-size:.92rem;margin:.75rem 0 0}
-  table{width:100%;border-collapse:collapse;font-size:.9rem}
-  th{text-align:left;font-family:var(--font-mono);font-size:.7rem;text-transform:uppercase;letter-spacing:.1em;
-     color:var(--limestone);font-weight:400;border-bottom:1px solid #e2ddd2;padding:.5rem .4rem}
-  td{padding:.5rem .4rem;border-bottom:1px solid #efeae0}
-  td.n,th.n{text-align:right;font-family:var(--font-mono)}
-  .scale{display:flex;height:8px;margin:1rem 0 .4rem;border:1px solid #e2ddd2}
+  html,body{margin:0;padding:0}
+  body{
+    background-color:#0b0c0f;
+    /* Gothic diaper: quatrefoil tracery on a dark ground. */
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='80' height='80' viewBox='0 0 80 80'%3E%3Cg fill='none' stroke='%231b1e26' stroke-width='1'%3E%3Cpath d='M40 6 L74 40 L40 74 L6 40 Z'/%3E%3Ccircle cx='40' cy='40' r='13'/%3E%3Cpath d='M40 27 A13 13 0 0 1 53 40 A13 13 0 0 1 40 53 A13 13 0 0 1 27 40 A13 13 0 0 1 40 27'/%3E%3Cpath d='M0 40 L6 40 M74 40 L80 40 M40 0 L40 6 M40 74 L40 80'/%3E%3C/g%3E%3Cg fill='%23161920'%3E%3Ccircle cx='40' cy='40' r='2.5'/%3E%3Ccircle cx='0' cy='0' r='2'/%3E%3Ccircle cx='80' cy='0' r='2'/%3E%3Ccircle cx='0' cy='80' r='2'/%3E%3Ccircle cx='80' cy='80' r='2'/%3E%3C/g%3E%3C/svg%3E");
+    color:var(--chalk);
+    font-family:var(--font-body);
+    line-height:1.6;
+  }
+  .wrap{max-width:64rem;margin:0 auto;padding:0 1.25rem 5rem}
+
+  /* ————— Portal: the west front ————— */
+  .portal{position:relative;padding:2.5rem 0 1rem;text-align:center}
+  .portal svg{display:block;width:100%;height:auto;max-height:19rem}
+  .titleblock{margin-top:-1.5rem}
+  h1{
+    font-family:var(--font-display);font-size:clamp(1.9rem,4.6vw,3rem);margin:0;
+    letter-spacing:.14em;text-transform:uppercase;color:var(--chalk);
+    text-shadow:0 0 26px rgba(200,162,76,.18);
+  }
+  .ticker{
+    font-family:var(--font-mono);font-size:.74rem;letter-spacing:.42em;
+    color:var(--gilt);text-transform:uppercase;margin:.7rem 0 0;
+  }
+  .creed{color:var(--ash);max-width:40rem;margin:1rem auto 0;font-size:.98rem;font-style:italic}
+
+  /* ————— Arched panels ————— */
+  .bay{position:relative;margin:2.75rem 0 0}
+  .bay__arch{display:block;width:100%;height:34px}
+  .panel{
+    background:linear-gradient(180deg,var(--stone-2),var(--stone));
+    border:1px solid var(--mortar);border-top:none;
+    padding:1.75rem;position:relative;
+  }
+  .panel::before,.panel::after{
+    content:'';position:absolute;top:0;bottom:0;width:3px;
+    background:linear-gradient(180deg,var(--gilt-dim),transparent 55%);
+    opacity:.5;
+  }
+  .panel::before{left:-1px} .panel::after{right:-1px}
+  h2{
+    font-family:var(--font-display);font-size:1.05rem;margin:0 0 1rem;font-weight:600;
+    letter-spacing:.19em;text-transform:uppercase;color:var(--gilt);
+  }
+
+  /* ————— The sanctuary: the value itself ————— */
+  .sanctum{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:1rem}
+  .gargoyle{width:100%;max-width:11rem;height:auto;opacity:.96}
+  .gargoyle--r{transform:scaleX(-1)}
+  .figure{text-align:center;min-width:0}
+  .value{
+    font-family:var(--font-mono);font-size:clamp(3.4rem,11vw,6rem);line-height:.95;
+    letter-spacing:-.03em;display:block;
+  }
+  .band{
+    font-family:var(--font-mono);font-size:.8rem;text-transform:uppercase;
+    letter-spacing:.3em;margin-top:.85rem;
+  }
+  .asof{color:var(--shadow);font-family:var(--font-mono);font-size:.72rem;margin-top:.7rem}
+
+  .scale{display:flex;height:9px;margin:1.75rem 0 .45rem;border:1px solid var(--mortar)}
   .scale div{flex:1}
-  .ticks{display:flex;justify-content:space-between;font-family:var(--font-mono);font-size:.68rem;color:var(--limestone)}
-  a{color:var(--wedgwood)}
-  .foot{color:var(--limestone);font-size:.82rem;margin-top:2rem}
-  .disclaimer{border-left:2px solid var(--gilt);padding-left:1rem;color:var(--bronze);font-size:.88rem}
-  .err{color:var(--terracotta)}
-  code{font-family:var(--font-mono);font-size:.85em;background:#efeae0;padding:.1rem .3rem}
-  @media (max-width:34rem){ .value{font-size:3rem} }
+  .ticks{display:flex;justify-content:space-between;font-family:var(--font-mono);font-size:.64rem;color:var(--shadow)}
+
+  /* ————— Tables ————— */
+  table{width:100%;border-collapse:collapse;font-size:.9rem}
+  th{
+    text-align:left;font-family:var(--font-mono);font-size:.63rem;text-transform:uppercase;
+    letter-spacing:.15em;color:var(--gilt-dim);font-weight:400;
+    border-bottom:1px solid var(--mortar);padding:.55rem .4rem;
+  }
+  td{padding:.6rem .4rem;border-bottom:1px solid rgba(42,46,56,.55);color:var(--chalk)}
+  td.n,th.n{text-align:right;font-family:var(--font-mono)}
+  tr.total td{border-bottom:none;border-top:1px solid var(--gilt-dim);padding-top:.8rem}
+  .table-scroll{overflow-x:auto}
+  a{color:var(--gilt);text-decoration:none;border-bottom:1px solid rgba(200,162,76,.35)}
+  a:hover{color:#e2c579}
+  .note{color:var(--ash);font-size:.9rem;margin:.9rem 0 0}
+  .foot{color:var(--shadow);font-size:.78rem;margin-top:2.5rem;text-align:center;font-family:var(--font-mono)}
+  .creed-block{
+    border-left:2px solid var(--gilt-dim);padding:.4rem 0 .4rem 1.1rem;
+    color:var(--ash);font-size:.87rem;margin-top:2.25rem;
+  }
+  .err{color:#b8615a}
+  .home{
+    display:inline-block;margin-top:2rem;font-family:var(--font-mono);
+    font-size:.72rem;letter-spacing:.2em;text-transform:uppercase;
+  }
+  @media (max-width:44rem){
+    .sanctum{grid-template-columns:1fr}
+    .gargoyle{display:none}
+  }
+  @media (prefers-reduced-motion:no-preference){
+    .flame{animation:flicker 5.5s ease-in-out infinite}
+    @keyframes flicker{0%,100%{opacity:.85}42%{opacity:.45}68%{opacity:1}}
+  }
 </style>
 </head>
 <body>
 <div class="wrap">
-  <div class="rule"></div>
-  <h1>AP Credit Cycle Index</h1>
-  <p class="sub"><strong>APCCI</strong> · a daily, rules-based measure of where the US credit cycle stands —
-    <strong>0 = maximum froth</strong>, <strong>100 = maximum despair</strong>.</p>
 
-  <div class="panel">
-    <h2>Latest value</h2>
-    <div id="latest">Loading…</div>
-    <div class="scale">
-      <div style="background:#9fb3c8"></div><div style="background:#c3cfd9"></div>
-      <div style="background:#e8e2d5"></div><div style="background:#d8bfae"></div>
-      <div style="background:#c08a76"></div>
+  <!-- ————— West front: rose window, lancets, spires ————— -->
+  <div class="portal">
+    <svg viewBox="0 0 900 300" role="img" aria-label="Gothic west front with rose window">
+      <defs>
+        <radialGradient id="roseGlow" cx="50%" cy="50%" r="50%">
+          <stop offset="0%" stop-color="#c8a24c" stop-opacity=".30"/>
+          <stop offset="70%" stop-color="#7d3b34" stop-opacity=".12"/>
+          <stop offset="100%" stop-color="#0b0c0f" stop-opacity="0"/>
+        </radialGradient>
+        <linearGradient id="stoneEdge" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="#2a2e38"/>
+          <stop offset="100%" stop-color="#15171c"/>
+        </linearGradient>
+      </defs>
+
+      <!-- flanking towers -->
+      <g stroke="#2a2e38" fill="url(#stoneEdge)" stroke-width="1.2">
+        <path d="M70 300 L70 120 L100 60 L130 120 L130 300 Z"/>
+        <path d="M770 300 L770 120 L800 60 L830 120 L830 300 Z"/>
+      </g>
+      <g stroke="#3a3f4b" fill="none" stroke-width="1">
+        <path d="M78 150 h44 M78 180 h44 M78 210 h44 M78 240 h44"/>
+        <path d="M778 150 h44 M778 180 h44 M778 210 h44 M778 240 h44"/>
+      </g>
+      <!-- lancet windows in the towers -->
+      <g fill="#0b0c0f" stroke="#4a4030" stroke-width="1">
+        <path d="M92 265 v-40 a8 8 0 0 1 16 0 v40 Z"/>
+        <path d="M792 265 v-40 a8 8 0 0 1 16 0 v40 Z"/>
+      </g>
+
+      <!-- rose window -->
+      <circle cx="450" cy="150" r="118" fill="url(#roseGlow)"/>
+      <g stroke="#4a4030" fill="none" stroke-width="1.4">
+        <circle cx="450" cy="150" r="96"/>
+        <circle cx="450" cy="150" r="74"/>
+        <circle cx="450" cy="150" r="30"/>
+      </g>
+      <g stroke="#3f4550" fill="none" stroke-width="1">
+        <path d="M450 54 v192 M354 150 h192 M382 82 L518 218 M518 82 L382 218"/>
+        <path d="M450 76 L473 113 L450 150 L427 113 Z M450 224 L473 187 L450 150 L427 187 Z"/>
+        <path d="M376 150 L413 127 L450 150 L413 173 Z M524 150 L487 127 L450 150 L487 173 Z"/>
+      </g>
+      <!-- petal lights -->
+      <g fill="#7d3b34" opacity=".5">
+        <circle cx="450" cy="86" r="7"/><circle cx="450" cy="214" r="7"/>
+        <circle cx="386" cy="150" r="7"/><circle cx="514" cy="150" r="7"/>
+      </g>
+      <g fill="#c8a24c" opacity=".45">
+        <circle cx="405" cy="105" r="5"/><circle cx="495" cy="105" r="5"/>
+        <circle cx="405" cy="195" r="5"/><circle cx="495" cy="195" r="5"/>
+      </g>
+      <circle cx="450" cy="150" r="11" fill="#c8a24c" opacity=".65" class="flame"/>
+
+      <!-- central portal arch below the rose -->
+      <path d="M370 300 L370 258 Q450 196 530 258 L530 300" fill="none" stroke="#4a4030" stroke-width="1.6"/>
+      <path d="M392 300 L392 262 Q450 214 508 262 L508 300" fill="none" stroke="#3a3f4b" stroke-width="1"/>
+
+      <!-- ground rule -->
+      <path d="M40 299 H860" stroke="#2a2e38" stroke-width="1"/>
+    </svg>
+
+    <div class="titleblock">
+      <h1>The Credit Cycle Index</h1>
+      <p class="ticker">APCCI · Published Daily</p>
+      <p class="creed">You cannot predict the cycle. You can know where you stand in it.
+        Nought is the hour of froth; one hundred, the hour of despair.</p>
     </div>
-    <div class="ticks"><span>0 froth</span><span>20</span><span>35</span><span>65</span><span>80</span><span>100 despair</span></div>
   </div>
 
-  <div class="panel">
-    <h2>How today's number was computed</h2>
-    <p class="note">Every component, its raw input, its score, and its contribution. Download the five
-      series from FRED and you can reproduce the value by hand in a few minutes.</p>
-    <div id="components">—</div>
+  <!-- ————— Sanctuary: the reading ————— -->
+  <div class="bay">
+    <svg class="bay__arch" viewBox="0 0 1000 34" preserveAspectRatio="none" aria-hidden="true">
+      <path d="M0 34 L0 22 Q500 -14 1000 22 L1000 34 Z" fill="#1c1f26" stroke="#2a2e38" stroke-width="1"/>
+    </svg>
+    <div class="panel">
+      <h2>The Reading</h2>
+      <div class="sanctum">
+        <!-- gargoyle, left: crouched grotesque on a corbel -->
+        <svg class="gargoyle" viewBox="0 0 200 220" role="img" aria-label="Stone gargoyle">
+          <!-- corbel -->
+          <g fill="#232830" stroke="#3f4653" stroke-width="1.2" stroke-linejoin="round">
+            <path d="M14 218 L186 218 L174 200 L26 200 Z"/>
+            <path d="M26 200 L174 200 L166 190 L34 190 Z"/>
+          </g>
+          <!-- tail, curling behind the haunch -->
+          <g fill="#262b34" stroke="#4a5260" stroke-width="1.2" stroke-linejoin="round">
+            <path d="M82 188 Q50 184 42 162 Q38 146 52 142 Q44 162 66 172 Q78 178 84 186 Z"/>
+          </g>
+          <!-- great folded wing: the silhouette that says gargoyle -->
+          <g fill="#252a33" stroke="#4a5260" stroke-width="1.3" stroke-linejoin="round">
+            <path d="M100 142 L62 6 Q82 52 93 36 Q100 74 112 55 Q119 94 134 76 Q129 118 108 140 Z"/>
+          </g>
+          <g fill="none" stroke="#3f4653" stroke-width="1">
+            <path d="M98 136 L70 24 M101 133 L102 64 M105 130 L120 82"/>
+          </g>
+          <!-- hunched torso, leaning forward -->
+          <g fill="#2c313b" stroke="#525b6b" stroke-width="1.4" stroke-linejoin="round">
+            <path d="M84 190 Q70 162 78 134 Q88 110 112 104 L136 116 Q148 140 144 166 Q141 182 137 190 Z"/>
+            <!-- foreleg gripping the corbel lip -->
+            <path d="M108 190 L102 156 Q113 144 126 154 L130 190 Z"/>
+            <!-- head thrust forward and down — the waterspout posture -->
+            <path d="M118 108 Q132 88 154 91 Q175 95 185 110 L204 121 L189 133 Q168 146 148 139 Q128 131 120 115 Z"/>
+            <!-- horns swept back over the skull -->
+            <path d="M140 94 L116 64 L154 86 Z"/>
+            <path d="M164 98 L158 66 L182 92 Z"/>
+          </g>
+          <!-- claws over the corbel edge -->
+          <g fill="#232830" stroke="#525b6b" stroke-width="1" stroke-linejoin="round">
+            <path d="M96 190 l7 10 l-14 0 Z M112 190 l7 10 l-14 0 Z M128 190 l7 10 l-14 0 Z"/>
+          </g>
+          <!-- open jaw, fangs, lit eye -->
+          <g fill="#0b0c0f"><path d="M186 114 L204 121 L189 132 Z"/></g>
+          <g fill="#cfd4dc"><path d="M182 117 l3 10 l-7 -3 Z M193 120 l3 9 l-7 -3 Z"/></g>
+          <circle cx="156" cy="112" r="3.6" fill="#c8a24c" opacity=".95"/>
+          <circle cx="156" cy="112" r="8" fill="#c8a24c" opacity=".16"/>
+        </svg>
+
+        <div class="figure" id="latest">Loading…</div>
+
+        <svg class="gargoyle gargoyle--r" viewBox="0 0 200 220" role="img" aria-label="Stone gargoyle">
+          <!-- corbel -->
+          <g fill="#232830" stroke="#3f4653" stroke-width="1.2" stroke-linejoin="round">
+            <path d="M14 218 L186 218 L174 200 L26 200 Z"/>
+            <path d="M26 200 L174 200 L166 190 L34 190 Z"/>
+          </g>
+          <!-- tail, curling behind the haunch -->
+          <g fill="#262b34" stroke="#4a5260" stroke-width="1.2" stroke-linejoin="round">
+            <path d="M82 188 Q50 184 42 162 Q38 146 52 142 Q44 162 66 172 Q78 178 84 186 Z"/>
+          </g>
+          <!-- great folded wing: the silhouette that says gargoyle -->
+          <g fill="#252a33" stroke="#4a5260" stroke-width="1.3" stroke-linejoin="round">
+            <path d="M100 142 L62 6 Q82 52 93 36 Q100 74 112 55 Q119 94 134 76 Q129 118 108 140 Z"/>
+          </g>
+          <g fill="none" stroke="#3f4653" stroke-width="1">
+            <path d="M98 136 L70 24 M101 133 L102 64 M105 130 L120 82"/>
+          </g>
+          <!-- hunched torso, leaning forward -->
+          <g fill="#2c313b" stroke="#525b6b" stroke-width="1.4" stroke-linejoin="round">
+            <path d="M84 190 Q70 162 78 134 Q88 110 112 104 L136 116 Q148 140 144 166 Q141 182 137 190 Z"/>
+            <!-- foreleg gripping the corbel lip -->
+            <path d="M108 190 L102 156 Q113 144 126 154 L130 190 Z"/>
+            <!-- head thrust forward and down — the waterspout posture -->
+            <path d="M118 108 Q132 88 154 91 Q175 95 185 110 L204 121 L189 133 Q168 146 148 139 Q128 131 120 115 Z"/>
+            <!-- horns swept back over the skull -->
+            <path d="M140 94 L116 64 L154 86 Z"/>
+            <path d="M164 98 L158 66 L182 92 Z"/>
+          </g>
+          <!-- claws over the corbel edge -->
+          <g fill="#232830" stroke="#525b6b" stroke-width="1" stroke-linejoin="round">
+            <path d="M96 190 l7 10 l-14 0 Z M112 190 l7 10 l-14 0 Z M128 190 l7 10 l-14 0 Z"/>
+          </g>
+          <!-- open jaw, fangs, lit eye -->
+          <g fill="#0b0c0f"><path d="M186 114 L204 121 L189 132 Z"/></g>
+          <g fill="#cfd4dc"><path d="M182 117 l3 10 l-7 -3 Z M193 120 l3 9 l-7 -3 Z"/></g>
+          <circle cx="156" cy="112" r="3.6" fill="#c8a24c" opacity=".95"/>
+          <circle cx="156" cy="112" r="8" fill="#c8a24c" opacity=".16"/>
+        </svg>
+      </div>
+
+      <div class="scale">
+        <div style="background:#2f4a5e"></div><div style="background:#3d5566"></div>
+        <div style="background:#4a4a4a"></div><div style="background:#7a4a3a"></div>
+        <div style="background:#7d3b34"></div>
+      </div>
+      <div class="ticks"><span>0 froth</span><span>20</span><span>35</span><span>65</span><span>80</span><span>100 despair</span></div>
+    </div>
   </div>
 
-  <div class="panel">
-    <h2>Published history</h2>
-    <div id="chart">—</div>
-    <p class="note">Published values are <strong>final</strong>. They are never revised — corrections
-      appear as new observations, never as edits to history.</p>
+  <!-- ————— The arithmetic ————— -->
+  <div class="bay">
+    <svg class="bay__arch" viewBox="0 0 1000 34" preserveAspectRatio="none" aria-hidden="true">
+      <path d="M0 34 L0 22 Q500 -14 1000 22 L1000 34 Z" fill="#1c1f26" stroke="#2a2e38" stroke-width="1"/>
+    </svg>
+    <div class="panel">
+      <h2>How This Number Was Made</h2>
+      <p class="note">Every component, its raw input, its score, and its contribution. Pull the five
+        series from FRED and you can reproduce the value by hand in a few minutes. Nothing here is
+        hidden, smoothed, or fitted after the fact.</p>
+      <div class="table-scroll" id="components">—</div>
+    </div>
   </div>
 
-  <div class="panel">
-    <h2>Data &amp; methodology</h2>
-    <table>
-      <tbody>
-        <tr><td>Full methodology</td><td><a href="https://github.com/Jiao-dotcum/AP-Capital/blob/main/docs/APCCI_METHODOLOGY.md">APCCI_METHODOLOGY.md</a></td></tr>
-        <tr><td>Download series (CSV)</td><td><a href="/api/index-value?format=csv">apcci.csv</a></td></tr>
-        <tr><td>Full series (JSON)</td><td><a href="/api/index-value?history=1">/api/index-value?history=1</a></td></tr>
-        <tr><td>Frozen specification</td><td><a href="/api/index-value?spec=1">/api/index-value?spec=1</a></td></tr>
-      </tbody>
-    </table>
-    <p class="note" id="spec-note"></p>
+  <!-- ————— The record ————— -->
+  <div class="bay">
+    <svg class="bay__arch" viewBox="0 0 1000 34" preserveAspectRatio="none" aria-hidden="true">
+      <path d="M0 34 L0 22 Q500 -14 1000 22 L1000 34 Z" fill="#1c1f26" stroke="#2a2e38" stroke-width="1"/>
+    </svg>
+    <div class="panel">
+      <h2>The Record</h2>
+      <div id="chart">—</div>
+      <p class="note">Published values are <strong>final</strong>. They are never revised —
+        corrections appear as new observations, never as edits to what was already written.</p>
+    </div>
   </div>
 
-  <p class="disclaimer"><strong>Not investment advice.</strong> The index measures market conditions.
+  <!-- ————— The sources ————— -->
+  <div class="bay">
+    <svg class="bay__arch" viewBox="0 0 1000 34" preserveAspectRatio="none" aria-hidden="true">
+      <path d="M0 34 L0 22 Q500 -14 1000 22 L1000 34 Z" fill="#1c1f26" stroke="#2a2e38" stroke-width="1"/>
+    </svg>
+    <div class="panel">
+      <h2>Sources &amp; Method</h2>
+      <table>
+        <tbody>
+          <tr><td>Full methodology</td><td><a href="https://github.com/Jiao-dotcum/AP-Capital/blob/main/docs/APCCI_METHODOLOGY.md">APCCI_METHODOLOGY.md</a></td></tr>
+          <tr><td>Download series (CSV)</td><td><a href="/api/index-value?format=csv">apcci.csv</a></td></tr>
+          <tr><td>Full series (JSON)</td><td><a href="/api/index-value?history=1">/api/index-value?history=1</a></td></tr>
+          <tr><td>Frozen specification</td><td><a href="/api/index-value?spec=1">/api/index-value?spec=1</a></td></tr>
+        </tbody>
+      </table>
+      <p class="note" id="spec-note"></p>
+      <a class="home" href="/">← Return to the machine</a>
+    </div>
+  </div>
+
+  <p class="creed-block"><strong>Not investment advice.</strong> The index measures market conditions.
     It does not forecast returns, and no performance is claimed or implied. Inputs are public data
     published by third parties; the index is not affiliated with, endorsed by, or derived from any
     index provider.</p>
@@ -97,28 +355,29 @@
 <script>
 const $ = (id) => document.getElementById(id)
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))
-const bandColor = (v) => v < 20 ? '#3e5c76' : v < 35 ? '#5b7d9a' : v < 65 ? '#57534a' : v < 80 ? '#a8663f' : '#8c3b2e'
+// Cold blue at froth, ember red at despair — the nave lit by the reading.
+const bandColor = (v) => v < 20 ? '#6f93b0' : v < 35 ? '#7f9aab' : v < 65 ? '#cfc7b4' : v < 80 ? '#c98b62' : '#c25a4d'
 
 fetch('/api/index-value').then((r) => r.json()).then((d) => {
   const spec = d.spec || {}
   $('spec-note').textContent = spec.name
     ? `${spec.name} (${spec.ticker}) version ${spec.version}. Base date ${spec.baseDate}. ${spec.revisionPolicy || ''}`
     : ''
-  $('foot').textContent = spec.version ? `APCCI ${spec.version} · values on a fixed 0–100 scale · computed from public FRED series.` : ''
+  $('foot').textContent = spec.version ? `APCCI ${spec.version} · fixed 0–100 scale · computed from public FRED series` : ''
 
   if (!d.configured) {
-    $('latest').innerHTML = '<p class="err">The index backend is not configured yet — no values published.</p>'
+    $('latest').innerHTML = '<p class="err">The index backend is not configured — no values published.</p>'
     return
   }
   const L = d.latest
   if (!L) {
-    $('latest').innerHTML = '<p class="note">No value published yet. The index begins publishing at its base date.</p>'
+    $('latest').innerHTML = '<p class="note">No value published yet. The index begins at its base date.</p>'
     return
   }
   $('latest').innerHTML =
-    `<div class="value" style="color:${bandColor(L.value)}">${L.value.toFixed(2)}</div>` +
+    `<span class="value" style="color:${bandColor(L.value)};text-shadow:0 0 34px ${bandColor(L.value)}44">${L.value.toFixed(2)}</span>` +
     `<div class="band" style="color:${bandColor(L.value)}">${esc(L.band)}</div>` +
-    `<div class="asof">observation date ${esc(L.obsDate)} · ${esc(L.ticker)} v${esc(L.version)}</div>`
+    `<div class="asof">observation ${esc(L.obsDate)} · ${esc(L.ticker)} v${esc(L.version)}</div>`
 
   const c = L.components || []
   if (c.length) {
@@ -128,7 +387,7 @@ fetch('/api/index-value').then((r) => r.json()).then((d) => {
       c.map((x) => `<tr><td>${esc(x.label)}</td><td><a href="https://fred.stlouisfed.org/series/${esc(x.series)}">${esc(x.series)}</a></td>` +
         `<td class="n">${x.raw}${x.unit === 'bp' ? 'bp' : ''}</td><td class="n">${Number(x.score).toFixed(2)}</td>` +
         `<td class="n">${(x.weight * 100).toFixed(0)}%</td><td class="n">${Number(x.contribution).toFixed(2)}</td></tr>`).join('') +
-      `<tr><td colspan="5"><strong>APCCI</strong></td><td class="n"><strong>${L.value.toFixed(2)}</strong></td></tr>` +
+      `<tr class="total"><td colspan="5"><strong>APCCI</strong></td><td class="n"><strong>${L.value.toFixed(2)}</strong></td></tr>` +
       '</tbody></table>'
   }
 }).catch(() => { $('latest').innerHTML = '<p class="err">Could not load the index.</p>' })
@@ -136,16 +395,16 @@ fetch('/api/index-value').then((r) => r.json()).then((d) => {
 fetch('/api/index-value?history=1').then((r) => r.json()).then((d) => {
   const h = (d.history || []).filter((x) => Number.isFinite(x.value))
   if (h.length < 2) { $('chart').innerHTML = '<p class="note">Not enough published history to chart yet.</p>'; return }
-  const W = 900, H = 220, P = 28
+  const W = 900, H = 240, P = 30
   const xs = (i) => P + (i / (h.length - 1)) * (W - 2 * P)
   const ys = (v) => H - P - (v / 100) * (H - 2 * P)
   const path = h.map((p, i) => `${i ? 'L' : 'M'}${xs(i).toFixed(1)},${ys(p.value).toFixed(1)}`).join('')
   const grid = [0, 20, 35, 65, 80, 100].map((v) =>
-    `<line x1="${P}" y1="${ys(v)}" x2="${W - P}" y2="${ys(v)}" stroke="#e2ddd2" stroke-width="1"/>` +
-    `<text x="4" y="${ys(v) + 3}" font-size="10" fill="#8a857a" font-family="monospace">${v}</text>`).join('')
+    `<line x1="${P}" y1="${ys(v)}" x2="${W - P}" y2="${ys(v)}" stroke="#2a2e38" stroke-width="1"/>` +
+    `<text x="2" y="${ys(v) + 3}" font-size="10" fill="#6a7080" font-family="monospace">${v}</text>`).join('')
   $('chart').innerHTML =
     `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto" role="img" aria-label="APCCI published history">` +
-    grid + `<path d="${path}" fill="none" stroke="#3e5c76" stroke-width="1.5"/></svg>` +
+    grid + `<path d="${path}" fill="none" stroke="#c8a24c" stroke-width="1.6"/></svg>` +
     `<div class="ticks"><span>${esc(h[0].obsDate)}</span><span>${h.length} published values</span><span>${esc(h[h.length - 1].obsDate)}</span></div>`
 }).catch(() => { $('chart').innerHTML = '<p class="note">Could not load history.</p>' })
 </script>

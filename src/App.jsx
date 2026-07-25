@@ -46,6 +46,7 @@ import {
   MandateBanner,
   HardstopBanner,
   Footer,
+  IndexLink,
 } from './components/chrome.jsx'
 import Compass from './components/Compass.jsx'
 import Provenance from './components/Provenance.jsx'
@@ -471,6 +472,7 @@ export default function App() {
           onOverride={(v) => setWorld((w) => ({ ...w, dialOverride: v }))}
           onResume={() => setWorld((w) => ({ ...w, dialOverride: null }))}
         />
+        <IndexLink />
       </section>
 
       <ColumnDivider />

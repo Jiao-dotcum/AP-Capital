@@ -111,6 +111,32 @@ export function Footer() {
         All expected returns, volatilities, betas, and carry figures are model assumptions for
         illustration. Nothing on this page is investment advice, an offer, or a solicitation.
       </p>
+      <p className="footer__disclaimer">
+        <a href="/apcci.html">The AP Credit Cycle Index (APCCI)</a> — the firm’s one published,
+        externally recomputable series. Unlike everything above it, it is built only from public
+        FRED data and its values are final.
+      </p>
     </footer>
+  )
+}
+
+// A standing link from the dashboard to the published index. The index is a
+// separate PAGE, not a section, and deliberately so: everything in the app is
+// simulated or paper, while the index is the one artifact a stranger can
+// recompute from public data. Mixing them on one canvas would blur exactly
+// the boundary the Charter exists to keep sharp.
+export function IndexLink() {
+  return (
+    <div className="panel panel--quiet" style={{ marginTop: 'var(--space-3)' }}>
+      <h3 className="panel__title">Published Index — APCCI</h3>
+      <p className="gear__note" style={{ marginBottom: 'var(--space-1)' }}>
+        The dial above drives this simulation and cannot be reproduced outside it — four of its
+        seven proxies are simulated and its baseline is a seeded climatology. The{' '}
+        <strong>AP Credit Cycle Index</strong> is the publishable counterpart: five public FRED
+        series through fixed, published anchor tables, so anyone can recompute every value.
+        Incomplete inputs publish nothing; published values are never revised.
+      </p>
+      <a className="btn btn--outline btn--small" href="/apcci.html">Open the published index →</a>
+    </div>
   )
 }
