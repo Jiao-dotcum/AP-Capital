@@ -16,7 +16,20 @@ export const FRED_SERIES = {
   DGS1: { label: '1y Treasury Constant Maturity', unit: '%' },
   DFF: { label: 'Effective Federal Funds Rate', unit: '%' },
   BAMLH0A0HYM2: { label: 'ICE BofA US High Yield OAS', unit: '%' },
+  // ————— APCCI inputs (see engine/creditIndex.js) —————
+  // OPTIONAL by design: the published index needs all of them, but the
+  // machine's macro reading does not. A missing one here must cost the day's
+  // index value, never the day's engine run — so these are never included in
+  // the required-series check below.
+  BAMLH0A3HYC: { label: 'ICE BofA US High Yield CCC & Lower OAS', unit: '%', optional: true },
+  BAMLC0A0CM: { label: 'ICE BofA US Corporate (IG) OAS', unit: '%', optional: true },
+  NFCI: { label: 'Chicago Fed National Financial Conditions Index', unit: 'index', optional: true },
+  VIXCLS: { label: 'CBOE Volatility Index', unit: 'points', optional: true },
 }
+
+export const REQUIRED_SERIES = Object.entries(FRED_SERIES)
+  .filter(([, s]) => !s.optional)
+  .map(([id]) => id)
 
 export const LOOKBACK_DAYS = 430 // 13+ months of CPI for the YoY base, with margin
 
@@ -159,8 +172,11 @@ export function interpretFredCsv(text, knownAt) {
   const dgs1 = last(s.DGS1)
   const dff = last(s.DFF)
   const hy = last(s.BAMLH0A0HYM2)
-  for (const [name, o] of Object.entries({ GDPNOW: gdpNow, CPIAUCSL: cpi, EXPINF1YR: expInf, DGS1: dgs1, DFF: dff, BAMLH0A0HYM2: hy })) {
-    if (!o) throw new Error(`series ${name} missing from CSV`)
+  // Only the REQUIRED series can fail the run — the optional APCCI inputs
+  // added alongside them cost the day's index value, not the engine step.
+  const found = { GDPNOW: gdpNow, CPIAUCSL: cpi, EXPINF1YR: expInf, DGS1: dgs1, DFF: dff, BAMLH0A0HYM2: hy }
+  for (const name of REQUIRED_SERIES) {
+    if (!found[name]) throw new Error(`series ${name} missing from CSV`)
   }
   const cpiBase = nearest(s.CPIAUCSL, cpi.date, 365)
   if (!cpiBase || cpiBase.date === cpi.date) throw new Error('no year-ago CPI base observation')
@@ -171,6 +187,24 @@ export function interpretFredCsv(text, knownAt) {
   const y1 = plausible(dgs1.value, 0, 15, 'DGS1')
   const ff = plausible(dff.value, 0, 15, 'DFF')
   const hyOasBp = Math.round(plausible(hy.value, 1, 25, 'HY OAS') * 100) // FRED quotes percent
+
+  // ————— APCCI inputs —————
+  // Collected leniently: absent or unparseable ⇒ undefined, which
+  // computeIndex reports as an incomplete index for the day rather than
+  // publishing a partial value. The OAS series are quoted in PERCENT like
+  // BAMLH0A0HYM2 above, so they convert ×100 to bp at this same parse site
+  // (the units rule — see CLAUDE.md "FRED units"). NFCI and VIX are already
+  // in their published units and are NOT converted.
+  const oasBp = (o) => (o && Number.isFinite(o.value) ? Math.round(o.value * 100) : undefined)
+  const levelOf = (o) => (o && Number.isFinite(o.value) ? o.value : undefined)
+  const indexInputs = {
+    hyOas: hyOasBp,
+    cccOas: oasBp(last(s.BAMLH0A3HYC)),
+    igOas: oasBp(last(s.BAMLC0A0CM)),
+    nfci: levelOf(last(s.NFCI)),
+    vix: levelOf(last(s.VIXCLS)),
+  }
+  const indexObsDate = last(s.BAMLH0A0HYM2)?.date ?? null
 
   // Actual vs market: inflation against the Cleveland Fed 1y expectation,
   // policy against the 1y-Treasury-implied path; growth priced-in has no free
@@ -194,6 +228,13 @@ export function interpretFredCsv(text, knownAt) {
     record('DFF', dff, knownAt),
     record('BAMLH0A0HYM2', hy, knownAt),
   ]
+  // The optional APCCI inputs are point-in-time observations too — store the
+  // ones that arrived so a published index value can be reconciled against
+  // the exact prints behind it later.
+  for (const id of ['BAMLH0A3HYC', 'BAMLC0A0CM', 'NFCI', 'VIXCLS']) {
+    const o = last(s[id])
+    if (o) records.push(record(id, o, knownAt))
+  }
 
   return {
     reading: { g, i, source: 'live' },
@@ -201,6 +242,8 @@ export function interpretFredCsv(text, knownAt) {
     hyOasBp,
     prints: { gdp_now: gdp, cpi_yoy: cpiYoY, expinf_1y: infExp, dgs1: y1, dff: ff, hy_oas: hyOasBp },
     records,
+    indexInputs,
+    indexObsDate,
   }
 }
 

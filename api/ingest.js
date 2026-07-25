@@ -5,6 +5,7 @@ import { secConfigured, fetchFundamentals } from './_lib/edgar.js'
 import { buildRealIssuers } from './_lib/realIssuers.js'
 import { runEngineStep, unchangedSinceRun } from './_lib/engine.js'
 import { anchorConfigured, anchorChainHead } from './_lib/anchor.js'
+import { computeIndex, bandOf, INDEX_TICKER } from '../src/engine/creditIndex.js'
 import {
   configured,
   ensureSchema,
@@ -15,6 +16,7 @@ import {
   insertEngineRun,
   getLatestRun,
   getLatestDialOverride,
+  insertIndexValue,
 } from './_lib/db.js'
 
 // A clean N-second timeout with no DNS/connection error first (as opposed to
@@ -174,6 +176,33 @@ export default async function handler(req, res) {
     } catch (err) {
       out.ok = false
       out.engineError = String(err.message || err)
+    }
+  }
+
+  // The published index (APCCI). Its own try/catch: the index is a
+  // publication, and a publishing failure must not fail the run that
+  // produced the data. Incomplete inputs publish NOTHING for the day rather
+  // than a partial value computed from a different set of components.
+  if (fredState?.indexInputs) {
+    try {
+      const idx = computeIndex(fredState.indexInputs)
+      if (!idx.complete) {
+        out.index = { published: false, reason: 'incomplete inputs', missing: idx.missing }
+      } else {
+        const obsDate = fredState.indexObsDate ?? fredState.knownAt.slice(0, 10)
+        const band = bandOf(idx.value).band
+        const published = configured()
+          ? await insertIndexValue({
+              ticker: INDEX_TICKER, version: idx.version, obsDate,
+              value: idx.value, band, components: idx.components, knownAt: fredState.knownAt,
+            })
+          : false
+        // published:false with a value present = this obs_date was already
+        // final. Not an error — the index refusing to restate itself.
+        out.index = { published, value: idx.value, band, obsDate, version: idx.version }
+      }
+    } catch (err) {
+      out.indexError = String(err.message || err)
     }
   }
 

@@ -162,6 +162,16 @@ function. Never advance the world any other way.
     halts buys (sells always clear), NAV/blotter persisted to localStorage.
   - `proxies.js` — sleeve→ETF ticker map + `sleeveReturns(pricesByTicker)`:
     the seam between real closes and the book's marks.
+  - `creditIndex.js` — **the published index (APCCI)**, a separate object
+    from the dial and deliberately so: the dial drives a simulation (four of
+    its seven proxies are simulated, its percentile baseline is a seeded
+    synthetic climatology), while the index takes ONLY public FRED series
+    through FIXED published anchor tables so a stranger can recompute every
+    value. Incomplete or implausible inputs publish NOTHING rather than a
+    partial value under the same name; published values are FINAL (enforced
+    by `ON CONFLICT DO NOTHING` on `(ticker, version, obs_date)`), and any
+    change to inputs/weights/anchors requires a new INDEX_VERSION, never an
+    edit. Spec: `docs/APCCI_METHODOLOGY.md`; served at `/api/index-value`.
   - `pit.js` — append-only point-in-time register (`obsDate` + `knownAt`);
     revisions append, never overwrite; `pitLatest(store, series, asOf)` is
     lookahead-proof by construction.

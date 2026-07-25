@@ -213,6 +213,40 @@ check('anchor reads back the last head (idempotency input)',
   anchor.lastAnchoredHead(anchor.appendAnchorLine(aLog, aRec)) === 'bbb')
 check('anchor survives a corrupt trailing line', anchor.lastAnchoredHead(`${aLog}{oops`) === 'aaa')
 
+// ————— The published index (APCCI) —————
+// A published index's whole claim is that a stranger can recompute it. What
+// must hold: deterministic, weights sum to 1, anchors well-formed, real
+// historical episodes rank in the order history placed them, and — the
+// publication discipline — incomplete or implausible inputs publish NOTHING
+// rather than a partial value under the same name.
+const ci = await eng('creditIndex.js')
+const episodes = [
+  { n: '2007 tights', i: { hyOas: 250, cccOas: 500, igOas: 85, nfci: -0.75, vix: 13 } },
+  { n: '2021 froth', i: { hyOas: 310, cccOas: 650, igOas: 95, nfci: -0.6, vix: 19 } },
+  { n: '2018 mid', i: { hyOas: 420, cccOas: 800, igOas: 125, nfci: -0.35, vix: 22 } },
+  { n: '2011 euro', i: { hyOas: 800, cccOas: 1400, igOas: 250, nfci: 0.6, vix: 35 } },
+  { n: '2020 covid', i: { hyOas: 1080, cccOas: 1800, igOas: 370, nfci: 1.2, vix: 65 } },
+  { n: '2008 GFC', i: { hyOas: 2000, cccOas: 4000, igOas: 550, nfci: 2.8, vix: 60 } },
+].map((e) => ({ ...e, v: ci.computeIndex(e.i).value }))
+check('index deterministic', same(ci.computeIndex(episodes[2].i), ci.computeIndex(episodes[2].i)))
+check('index weights sum to 1', Math.abs(ci.COMPONENTS.reduce((s, c) => s + c.weight, 0) - 1) < 1e-9)
+check('index anchors ascending and spanning 0..100',
+  ci.COMPONENTS.every((c) => c.anchors.every((p, k) => k === 0 || (p[0] > c.anchors[k - 1][0] && p[1] >= c.anchors[k - 1][1])) &&
+    c.anchors[0][1] === 0 && c.anchors[c.anchors.length - 1][1] === 100))
+check('index ranks real episodes in historical order',
+  episodes.every((e, k) => k === 0 || e.v > episodes[k - 1].v),
+  episodes.map((e) => `${e.n} ${e.v.toFixed(1)}`).join(' < '))
+check('index bounded 0..100', episodes.every((e) => e.v >= 0 && e.v <= 100))
+const idxPartial = ci.computeIndex({ hyOas: 450, cccOas: 900, igOas: 130, nfci: 0 })
+check('incomplete inputs publish nothing (not a partial index)',
+  idxPartial.complete === false && idxPartial.value === null && idxPartial.missing.some((m) => m.includes('VIXCLS')))
+const idxBroken = ci.computeIndex({ hyOas: 8, cccOas: 900, igOas: 130, nfci: 0, vix: 20 })
+check('implausible input treated as missing, never clamped',
+  idxBroken.complete === false && idxBroken.value === null)
+const idxFull = ci.computeIndex({ hyOas: 450, cccOas: 900, igOas: 130, nfci: 0, vix: 20 })
+check('published components reconstruct the value',
+  Math.abs(idxFull.components.reduce((s, c) => s + c.score * c.weight, 0) - idxFull.value) < 0.01)
+
 const mbt1 = runMandateBacktests()
 check('mandate backtests deterministic', same(mbt1, runMandateBacktests()))
 check('mandate backtests: 264 months each, no NaN/Infinity',

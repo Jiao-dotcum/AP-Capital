@@ -115,6 +115,27 @@ const SCHEMA = `
     ON fundamentals (ticker, fiscal_end, cov, lev);
   CREATE INDEX IF NOT EXISTS fundamentals_ticker_idx ON fundamentals (ticker, created_at DESC);
 
+  -- The published index (APCCI). Append-only and NEVER revised: an index
+  -- value, once published for an observation date, is final. A corrected
+  -- input arrives as a new row for a later obs_date, never as an edit —
+  -- silently restating history is the one thing that would make a published
+  -- index worthless. The unique index enforces one value per (version,
+  -- obs_date) so a re-run cannot overwrite a published day.
+  CREATE TABLE IF NOT EXISTS index_values (
+    id          BIGSERIAL PRIMARY KEY,
+    ticker      TEXT NOT NULL,
+    version     TEXT NOT NULL,
+    obs_date    DATE NOT NULL,
+    value       DOUBLE PRECISION NOT NULL,
+    band        TEXT NOT NULL,
+    components  JSONB NOT NULL,
+    known_at    TIMESTAMPTZ NOT NULL,
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+  );
+  CREATE UNIQUE INDEX IF NOT EXISTS index_values_final_idx
+    ON index_values (ticker, version, obs_date);
+  CREATE INDEX IF NOT EXISTS index_values_recent_idx ON index_values (obs_date DESC);
+
   CREATE TABLE IF NOT EXISTS dial_overrides (
     id         BIGSERIAL PRIMARY KEY,
     dial       INTEGER,           -- NULL = resume automatic
@@ -307,6 +328,65 @@ export async function getLatestFundamentals() {
     knownAt: r.known_at,
     source: r.source,
   }))
+}
+
+// ————— The published index (APCCI) —————
+// ON CONFLICT DO NOTHING, never DO UPDATE: a published value for an
+// observation date is final. Re-running the ingest on the same day is a
+// no-op, and a changed input cannot silently restate a day that has already
+// been published. Returns whether a NEW value was published.
+export async function insertIndexValue({ ticker, version, obsDate, value, band, components, knownAt }) {
+  const p = pool()
+  if (!p) return false
+  const res = await p.query(
+    `INSERT INTO index_values (ticker, version, obs_date, value, band, components, known_at)
+     VALUES ($1,$2,$3,$4,$5,$6,$7)
+     ON CONFLICT (ticker, version, obs_date) DO NOTHING`,
+    [ticker, version, obsDate, value, band, JSON.stringify(components), knownAt],
+  )
+  return res.rowCount > 0
+}
+
+// The published series, oldest first — the whole index history.
+export async function getIndexHistory(limit = 3650) {
+  const p = pool()
+  if (!p) return null
+  const { rows } = await p.query(
+    `SELECT ticker, version, obs_date, value, band, known_at
+       FROM index_values ORDER BY obs_date DESC LIMIT $1`,
+    [limit],
+  )
+  return rows
+    .map((r) => ({
+      ticker: r.ticker,
+      version: r.version,
+      obsDate: r.obs_date instanceof Date ? r.obs_date.toISOString().slice(0, 10) : r.obs_date,
+      value: r.value,
+      band: r.band,
+      knownAt: r.known_at,
+    }))
+    .reverse()
+}
+
+// The newest published value, with the full component arithmetic.
+export async function getLatestIndexValue() {
+  const p = pool()
+  if (!p) return null
+  const { rows } = await p.query(
+    `SELECT ticker, version, obs_date, value, band, components, known_at
+       FROM index_values ORDER BY obs_date DESC LIMIT 1`,
+  )
+  if (!rows.length) return null
+  const r = rows[0]
+  return {
+    ticker: r.ticker,
+    version: r.version,
+    obsDate: r.obs_date instanceof Date ? r.obs_date.toISOString().slice(0, 10) : r.obs_date,
+    value: r.value,
+    band: r.band,
+    components: r.components,
+    knownAt: r.known_at,
+  }
 }
 
 // ————— Human ratification of the dial (The Charter) —————
