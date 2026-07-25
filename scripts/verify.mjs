@@ -77,6 +77,19 @@ const realFixture = buildRealIssuer(
   { price: 45, sharesOut: 1.2e9, equityVolAnnual: 0.32 },
 )
 check('buildRealIssuer produces a valid ISSUERS-shaped row', realFixture.id === 'TST' && Number.isFinite(realFixture.mult) && Number.isFinite(realFixture.av) && realFixture.source === 'EDGAR+KMV')
+
+// XBRL units are per-fact, not global: financials are us-gaap/USD but share
+// counts are `shares`, and the authoritative current count is a dei
+// cover-page fact. A USD-only lookup returns null for every filer, which
+// would make buildRealIssuer throw "shares outstanding missing" for EVERY
+// real issuer — the whole desk silently empty with everything configured.
+const { latestSharesOutstanding, latestAnnual: latestAnnualUsd } = await import(join(ROOT, 'src/live/edgar.js'))
+const unitFixture = { facts: {
+  dei: { EntityCommonStockSharesOutstanding: { units: { shares: [{ form: '10-K', fp: 'FY', end: '2025-12-31', val: 4e9 }] } } },
+  'us-gaap': { OperatingIncomeLoss: { units: { USD: [{ form: '10-K', fp: 'FY', end: '2025-12-31', val: 5e9 }] } } },
+} }
+check('shares outstanding read from the shares unit, not USD', latestSharesOutstanding(unitFixture) === 4e9)
+check('USD financial lookups unaffected by the unit fix', latestAnnualUsd(unitFixture, ['OperatingIncomeLoss']) === 5e9)
 const mergedIssuers = tradedIssuers([realFixture])
 check('tradedIssuers additive (10 sim + real, not a replacement)', mergedIssuers.length === ISSUERS.length + 1)
 check('tradedIssuers(null/[]) is a no-op — pre-real-desk behavior unchanged', tradedIssuers(null) === ISSUERS && tradedIssuers([]) === ISSUERS)

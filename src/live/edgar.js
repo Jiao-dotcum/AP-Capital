@@ -153,25 +153,47 @@ export function findFactsJson(content) {
   return null
 }
 
-// The latest annual (FY, form 10-K) USD observation for a us-gaap concept,
-// trying each candidate tag in order until one has data. Returns the full
-// observation so callers can carry the fiscal period end (PIT discipline:
-// obsDate = what period the number is FOR, knownAt = when we learned it).
-export function latestAnnualObs(facts, concepts) {
+// The latest observation for a concept, trying each candidate tag in order.
+// Returns the full observation so callers can carry the fiscal period end
+// (PIT discipline: obsDate = what period the number is FOR, knownAt = when
+// we learned it). Taxonomy and unit are parameters because XBRL facts are
+// NOT all us-gaap/USD — share counts live under `shares`, and the
+// authoritative current share count is a `dei` cover-page fact.
+export function latestObs(facts, concepts, { taxonomy = 'us-gaap', unit = 'USD', annualOnly = true } = {}) {
   for (const concept of concepts) {
-    const node = facts?.facts?.['us-gaap']?.[concept]
+    const node = facts?.facts?.[taxonomy]?.[concept]
     if (!node) continue
-    const units = node.units?.USD
-    if (!units) continue
-    const annual = units
-      .filter((u) => u.form === '10-K' && u.fp === 'FY' && Number.isFinite(u.val))
+    const rows = node.units?.[unit]
+    if (!rows) continue
+    const matching = rows
+      .filter((u) => Number.isFinite(u.val) && (!annualOnly || (u.form === '10-K' && u.fp === 'FY')))
       .sort((a, b) => (a.end < b.end ? 1 : -1))
-    if (annual.length) return annual[0]
+    if (matching.length) return matching[0]
   }
   return null
 }
 
+// The original annual-USD lookup, unchanged in behavior — every financial
+// fact below (operating income, interest, debt, D&A) still goes through it.
+export const latestAnnualObs = (facts, concepts) => latestObs(facts, concepts)
+
 export const latestAnnual = (facts, concepts) => latestAnnualObs(facts, concepts)?.val ?? null
+
+// Shares outstanding — needed for market cap, which the real trading desk's
+// KMV unlevering needs (buildRealIssuer, engine/credit.js). Deliberately NOT
+// the annual-USD path: (1) the unit is `shares`, so the USD lookup above
+// returns null for every filer — the bug this function exists to fix; (2) the
+// `dei` cover-page fact is the authoritative CURRENT count and is the right
+// input to a market cap, so it wins over the us-gaap balance-sheet tags;
+// (3) annualOnly is off — a 10-Q cover carries a fresher count than the last
+// 10-K, and for market cap fresher is strictly better.
+export function latestSharesOutstanding(facts) {
+  return (
+    latestObs(facts, ['EntityCommonStockSharesOutstanding'], { taxonomy: 'dei', unit: 'shares', annualOnly: false })?.val ??
+    latestObs(facts, ['CommonStockSharesOutstanding', 'CommonStockSharesIssued'], { unit: 'shares', annualOnly: false })?.val ??
+    null
+  )
+}
 
 // Coverage = operating income / interest expense; leverage = total debt /
 // EBITDA-proxy (operating income + D&A, falling back to operating income).
@@ -247,9 +269,9 @@ export function deriveFundamentals(issuer, facts) {
   // beyond this benchmark panel's own display: market cap = price × shares,
   // and market cap is what the KMV unlevering in engine/credit.js needs to
   // turn a real equity price into a real equity VALUE (see
-  // buildRealIssuer / api/_lib/realIssuers.js). Harmless to compute here
-  // even when nothing downstream uses it yet.
-  const sharesOut = latestAnnual(facts, ['CommonStockSharesOutstanding', 'CommonStockSharesIssued'])
+  // buildRealIssuer / api/_lib/realIssuers.js). Unit-aware (`shares`, not
+  // USD) — see latestSharesOutstanding.
+  const sharesOut = latestSharesOutstanding(facts)
   return {
     ...issuer,
     cov,
