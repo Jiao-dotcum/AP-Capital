@@ -75,6 +75,16 @@ export function stepCreditBook(prev, { cycle, dial, dialOverride, issuers }) {
       const mtm = 100 * (now.price / prevRow.price - 1)
       perfRet += (prevRow.weight / 100) * (carry + mtm)
     }
+    // Screen weights do NOT always sum to 100: when few names clear the
+    // gates, the single-name cap leaves capital with nowhere compliant to
+    // go. That was unreachable with the fixed ten simulated issuers (five
+    // always cleared, summing to 100) and became reachable the moment the
+    // desk traded a real universe, where a strict screen can leave most of
+    // the sleeve uninvested. Uninvested sleeve capital is CASH and earns the
+    // bill rate — before this it silently earned zero, understating the
+    // sleeve's return by the idle share.
+    const investedW = book.prevRows.reduce((s, p) => s + Math.max(0, p.weight), 0)
+    perfRet += (Math.max(0, 100 - investedW) / 100) * cashMo
     for (const r of rows) {
       const before = book.prevRows.find((p) => p.id === r.id)?.weight ?? 0
       if (r.weight > before) turnover += (r.weight - before) / 100

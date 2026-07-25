@@ -34,7 +34,7 @@ const { runBacktest, windowStats } = await eng('backtest.js')
 const { buildRiskReport } = await eng('risk.js')
 const { screenPerforming, tradedIssuers, unleverAssetVol, realizedVolAnnual, buildRealIssuer, ISSUERS } = await eng('credit.js')
 const { CYCLE0 } = await eng('cycle.js')
-const { UNIVERSE } = await eng('assets.js')
+const { UNIVERSE, CASH_RATE } = await eng('assets.js')
 const { gradeBook } = await eng('grades.js')
 const { bestIdeas } = await eng('origination.js')
 const { initBook, targetPositions, planOrders, execute } = await eng('oms.js')
@@ -90,13 +90,19 @@ const unitFixture = { facts: {
 } }
 check('shares outstanding read from the shares unit, not USD', latestSharesOutstanding(unitFixture) === 4e9)
 check('USD financial lookups unaffected by the unit fix', latestAnnualUsd(unitFixture, ['OperatingIncomeLoss']) === 5e9)
-const mergedIssuers = tradedIssuers([realFixture])
-check('tradedIssuers additive (10 sim + real, not a replacement)', mergedIssuers.length === ISSUERS.length + 1)
-check('tradedIssuers(null/[]) is a no-op — pre-real-desk behavior unchanged', tradedIssuers(null) === ISSUERS && tradedIssuers([]) === ISSUERS)
-const mergedScreen = screenPerforming(CYCLE0, mergedIssuers)
-const mergedW = mergedScreen.reduce((s, r) => s + r.weight, 0)
-check('merged (real+sim) book still balances', mergedW > 99 && mergedW < 101, `weights sum ${mergedW.toFixed(1)}%`)
-check('real issuer appears in the merged screen', mergedScreen.some((r) => r.id === 'TST'))
+// Real issuers REPLACE the simulated ten — a book that mixes measured and
+// invented names can't be reasoned about. Fallback to ISSUERS only when no
+// real name cleared.
+const realOnly = tradedIssuers([realFixture])
+check('tradedIssuers REPLACES the sims when real names exist', realOnly.length === 1 && realOnly[0].id === 'TST')
+check('tradedIssuers(null/[]) falls back to the simulated ten', tradedIssuers(null) === ISSUERS && tradedIssuers([]) === ISSUERS)
+const realScreen = screenPerforming(CYCLE0, realOnly)
+check('real-only screen produces a verdict for every name', realScreen.length === 1 && typeof realScreen[0].verdict === 'string')
+// A strict screen on a small real universe can leave most of the sleeve
+// uninvested (the single-name cap has nowhere compliant to put the rest).
+// That is allowed — but the idle share must earn cash, not zero.
+check('screen weights may be under 100 on a small real universe (allowed)',
+  realScreen.reduce((s, r) => s + r.weight, 0) <= 100.01)
 
 const ctx = { g: 0.3, i: -0.2, dial: 50 }
 const grades = gradeBook(ctx)
@@ -142,6 +148,17 @@ const runR1 = runEngineStep(null, inR1)
 check('real-desk run deterministic', same(runR1, runEngineStep(null, inR1)))
 check('real issuer sealed in decision.realIssuers', runR1.decision.realIssuers.length === 1 && runR1.decision.realIssuers[0].id === 'TST')
 check('real issuer reaches the credit book orders', runR1.credit.orders.some((o) => o.id === 'TST'))
+// Uninvested performing-sleeve capital is cash, not a zero-return hole —
+// unreachable while the fixed ten sims always summed to 100, reachable the
+// moment a real universe is screened strictly.
+const { stepCreditBook } = await import(join(ROOT, 'api/_lib/creditBook.js'))
+const thin = tradedIssuers([realFixture])
+const t1 = stepCreditBook(null, { cycle: CYCLE0, dial: 50, dialOverride: null, issuers: thin })
+const t2 = stepCreditBook(t1.book, { cycle: CYCLE0, dial: 50, dialOverride: null, issuers: thin })
+const idleW = 100 - t1.book.prevRows.reduce((s, p) => s + Math.max(0, p.weight), 0)
+check('idle sleeve capital earns cash, not zero',
+  idleW <= 0 || t2.pnl.sleeves.performing.retPct > (idleW / 100) * (CASH_RATE / 12) * 0.5,
+  `${idleW.toFixed(1)}% idle, sleeve ${t2.pnl.sleeves.performing.retPct}%`)
 const runR2null = runEngineStep(runR1, { reading: run2.reading, hyOasBp: run2.hyOasBp, knownAt: '2026-01-02T00:00:00.000Z', prices: null, realIssuers: null })
 check('null realIssuers carries the previous run forward', runR2null.world.realIssuers.length === 1)
 const runR2clear = runEngineStep(runR1, { reading: run2.reading, hyOasBp: run2.hyOasBp, knownAt: '2026-01-02T00:00:00.000Z', prices: null, realIssuers: [] })

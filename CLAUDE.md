@@ -101,9 +101,14 @@ function. Never advance the world any other way.
     deliberately avoids the Gaussian tail). `buildRealIssuer(meta,
     fundamentals, market)` assembles one real issuer into the exact ISSUERS
     shape (fails loud on any missing/implausible input — never estimates);
-    `tradedIssuers(realIssuers)` merges real names onto the 10 simulated ones
-    **additively** — the desk's actual traded universe everywhere
-    `screenPerforming` is called to trade (not just display) real credit.
+    `tradedIssuers(realIssuers)` returns the real names when any cleared,
+    **replacing** the 10 simulated ones outright (a book that mixes measured
+    and invented issuers can't be reasoned about — a weight or a P&L number
+    would be part measurement, part fiction); it falls back to `ISSUERS` only
+    when nothing cleared, and those rows are labeled SIM in the UI. The
+    offline `cov/lev/mult/av` in `BENCHMARKS` never reach the desk — only
+    `buildRealIssuer` output, stamped `EDGAR+KMV`, is traded, so a real
+    company name can never appear carrying typed-in numbers.
   - `assets.js` — 17-asset UNIVERSE with `er/vol/bG/bI/bM/carry`;
     `monthlyReturn` is the **canonical return generator** (drift + macro
     betas·SURPRISE_PP + shared market shock·MARKET_VOL·bM, stress-amplified
@@ -308,6 +313,16 @@ unless it follows the rule.
   crisis-correlation story invisible. → *Rule: cross-asset correlation claims
   are measured within the `RISK_ON` cohort, and the crisis mechanism lives in
   `stressAmp` (the shared shock amplifies in risk-off months).*
+- **The sleeve that was 78% nothing.** `stepCreditBook`'s P&L summed each
+  held name's weighted return and stopped there — correct only because the
+  ten simulated issuers always had five clear the gates and sum to exactly
+  100. Screening a real universe strictly left ONE name at its 22% cap and
+  78% of the sleeve with nowhere compliant to go; that 78% then earned
+  literally zero, silently understating the sleeve's return. → *Rule: any
+  weighted-return loop must account for the UNALLOCATED remainder explicitly
+  (`100 − Σweights` is cash and earns the bill rate), never assume weights
+  sum to 100. Same family as the failure below: a property that held only
+  because the universe was fixed.*
 - **The universe that used to be fixed.** `stepCreditBook`'s P&L loop looked
   up each held position's issuer by id in the CURRENT screen and read
   `now.price` unconditionally — safe for 22 months of the credit backtest

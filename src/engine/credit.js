@@ -165,13 +165,22 @@ export function buildRealIssuer(meta, fundamentals, market) {
   }
 }
 
-// The trading desk's actual universe: the ten simulated issuers, extended by
-// any real, live-verified names (built server-side — see
-// api/_lib/realIssuers.js). Additive, not a replacement: real coverage grows
-// the book without discarding the existing simulated names, and every
-// concentration cap below applies across the union exactly as it does today.
+// The trading desk's actual universe. Real, live-verified issuers REPLACE
+// the simulated ten outright — they are not blended. A book that mixes real
+// companies with invented ones can't be reasoned about: a weight, a sector
+// exposure, or a P&L number would be part measurement and part fiction with
+// no way to separate them.
+//
+// The fallback to ISSUERS is for when no real name has cleared (backend
+// unconfigured, or every issuer failed its data gates). That keeps the desk
+// renderable and the paper book running (Invariant 5), and those rows are
+// labeled SIM in the UI. Note what does NOT reach here: the offline
+// cov/lev/mult/av estimates in BENCHMARKS (src/live/edgar.js) are typed-in
+// placeholders for the benchmark panel — only `buildRealIssuer` output,
+// stamped `EDGAR+KMV`, is ever traded, so a real company NAME can never
+// appear on this desk carrying made-up numbers.
 export function tradedIssuers(realIssuers) {
-  return realIssuers && realIssuers.length ? [...ISSUERS, ...realIssuers] : ISSUERS
+  return realIssuers && realIssuers.length ? realIssuers : ISSUERS
 }
 
 // ————— The one-year ratings-transition matrix (Markov migration) —————
