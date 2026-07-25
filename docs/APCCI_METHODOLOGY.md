@@ -134,13 +134,43 @@ series near 50:
 calibration check — not published index values. The index's live history
 begins at the base date.)*
 
-**What this calibration is not.** The anchors were set from named historical
-episodes and approximate long-run medians. They have **not** been fitted to
-the full historical distribution of each series. A rigorous percentile
-recalibration against complete FRED history is the intended v1.1. Until then,
+**What this calibration is not.** The v1.0.0 anchors were set from named
+historical episodes and approximate long-run medians. They have **not** been
+fitted to the full historical distribution of each series. Until they are,
 the defensible claim is *ordering and rough level*, not precision about any
 single reading — and band membership near a boundary (September 2011 sits
 essentially on the stress/despair line) should be read as approximate.
+
+### The v1.1 recalibration (procedure published in advance)
+
+`scripts/calibrate-index.mjs` performs the fix and is in the repository now.
+Publishing the procedure before the result is deliberate: it means the
+recalibration cannot be quietly tuned until it flatters the index.
+
+1. Pull the complete history of all five series from FRED.
+2. Restrict to the **common overlapping window** — percentiles are only
+   comparable across components if they describe the same period. Using each
+   series' own full history would mix a 1971-start conditions index with a
+   1996-start spread series and call the result one index.
+3. For each series, compute the empirical value at the percentile ladder
+   **0, 5, 10, 25, 50, 75, 90, 95, 100** (linear interpolation between order
+   statistics — the standard definition).
+4. Emit anchors as `[value_at_percentile_p, p]`, so a component's score
+   **is** its historical percentile. Where a flat stretch of the
+   distribution repeats a raw value across ladder points, the duplicates
+   collapse to the *highest* percentile — conservative, never reporting more
+   distress than the data supports.
+5. A human reviews the output and freezes it as `INDEX_VERSION = '1.1.0'`,
+   recording the exact window and ladder here.
+
+**Version 1.1.0 is not yet published.** The calibration requires network
+access to FRED, which the development sandbox blocks by policy. The tool is
+written and its arithmetic is verified against known distributions in
+`scripts/verify.mjs`; it needs one run from a machine with internet access.
+
+When 1.1.0 ships it will be a **separate series**. Published 1.0.0 values
+will not be recomputed, and both versions will remain queryable — an index
+that restates its own history is not an index.
 
 ---
 
@@ -167,14 +197,21 @@ essentially on the stress/despair line) should be read as approximate.
 
 ## 6. Reading the index
 
+**Public page:** `/apcci.html` — current value, the band, the component
+arithmetic behind today's number, and a chart of published history. Each
+component links to its FRED series so the value can be checked by hand.
+
 ```
-GET /api/index-value            → latest value, components, methodology
-GET /api/index-value?history=1  → the full published series
-GET /api/index-value?spec=1     → the frozen specification
+GET /api/index-value             → latest value, components, methodology
+GET /api/index-value?history=1   → the full published series (JSON)
+GET /api/index-value?format=csv  → the full published series (CSV download)
+GET /api/index-value?spec=1      → the frozen specification
 ```
 
 Public and unauthenticated. Every response includes the component breakdown
-behind the value.
+behind the value. The CSV carries its own provenance header — version, base
+date, methodology location, and the revision policy — so a downloaded file
+still says what it is once detached from this endpoint.
 
 ---
 

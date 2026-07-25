@@ -171,7 +171,12 @@ function. Never advance the world any other way.
     partial value under the same name; published values are FINAL (enforced
     by `ON CONFLICT DO NOTHING` on `(ticker, version, obs_date)`), and any
     change to inputs/weights/anchors requires a new INDEX_VERSION, never an
-    edit. Spec: `docs/APCCI_METHODOLOGY.md`; served at `/api/index-value`.
+    edit. Spec: `docs/APCCI_METHODOLOGY.md`; served at `/api/index-value`
+    (`?history=1` JSON, `?format=csv` download, `?spec=1` frozen spec) with a
+    public page at `public/apcci.html` showing the component arithmetic.
+    `scripts/calibrate-index.mjs` emits percentile-fitted anchors for a
+    future v1.1 — it PRINTS for human review and never writes the spec, so
+    the index can never silently recalibrate itself.
   - `pit.js` — append-only point-in-time register (`obsDate` + `knownAt`);
     revisions append, never overwrite; `pitLatest(store, series, asOf)` is
     lookahead-proof by construction.

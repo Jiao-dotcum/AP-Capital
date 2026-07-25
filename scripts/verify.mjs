@@ -247,6 +247,36 @@ const idxFull = ci.computeIndex({ hyOas: 450, cccOas: 900, igOas: 130, nfci: 0, 
 check('published components reconstruct the value',
   Math.abs(idxFull.components.reduce((s, c) => s + c.score * c.weight, 0) - idxFull.value) < 0.01)
 
+// The calibration tool (v1.1): percentile math must be exact, and the
+// anchors it emits must be consumable by interpolate() — including the
+// degenerate case where a flat stretch of the distribution would otherwise
+// emit duplicate raw values and break the mapping.
+const cal = await import(join(ROOT, 'scripts/calibrate-index.mjs'))
+const ladderSeries = Array.from({ length: 101 }, (_, i) => i + 1)
+check('calibration percentiles exact (p0/p25/p50/p75/p100)',
+  cal.percentile(ladderSeries, 0) === 1 && cal.percentile(ladderSeries, 25) === 26 &&
+  cal.percentile(ladderSeries, 50) === 51 && cal.percentile(ladderSeries, 75) === 76 &&
+  cal.percentile(ladderSeries, 100) === 101)
+const calAnchors = cal.anchorsFrom(ladderSeries, [0, 25, 50, 75, 100], Math.round)
+check('calibrated anchors ascending and score == percentile',
+  calAnchors.every((p, k) => k === 0 || p[0] > calAnchors[k - 1][0]) &&
+  Math.abs(ci.interpolate(calAnchors, 51) - 50) < 1e-9)
+check('calibration collapses flat stretches (no duplicate raw values)',
+  cal.anchorsFrom([5, 5, 5, 5, 9], [0, 25, 50, 75, 100], Math.round).every((p, k, a) => k === 0 || p[0] > a[k - 1][0]))
+
+// The public CSV: provenance header, one row per published value, and the
+// disclaimer travels with the file once it leaves the endpoint.
+const { toCsv } = await import(join(ROOT, 'api/index-value.js'))
+const csv = toCsv(
+  [{ obsDate: '2026-07-24', ticker: 'APCCI', version: '1.0.0', value: 47.35, band: 'Neutral' }],
+  { version: '1.0.0', baseDate: '2026-07-22', methodology: 'docs/APCCI_METHODOLOGY.md' },
+  new Date('2026-07-25T00:00:00Z'),
+)
+check('index CSV has a header row and the data row',
+  csv.includes('obs_date,ticker,version,value,band') && csv.includes('2026-07-24,APCCI,1.0.0,47.35,"Neutral"'))
+check('index CSV carries provenance and the disclaimer',
+  csv.includes('never revised') && csv.includes('not investment advice') && csv.includes('APCCI_METHODOLOGY.md'))
+
 const mbt1 = runMandateBacktests()
 check('mandate backtests deterministic', same(mbt1, runMandateBacktests()))
 check('mandate backtests: 264 months each, no NaN/Infinity',

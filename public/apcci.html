@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>AP Credit Cycle Index (APCCI)</title>
+<meta name="description" content="A daily, rules-based index of where the US credit cycle stands, 0 (froth) to 100 (despair). Public methodology, recomputable from FRED." />
+<style>
+  :root{
+    --stone:#fbfaf7; --ink:#1c1b18; --bronze:#57534a; --limestone:#8a857a;
+    --wedgwood:#3e5c76; --laurel:#6e7f58; --terracotta:#8c3b2e; --gilt:#a69258;
+    --font-display:'Playfair Display','Didot','Bodoni MT','Times New Roman',serif;
+    --font-body:'Source Serif 4',Georgia,'Times New Roman',serif;
+    --font-mono:'IBM Plex Mono','Menlo','Courier New',monospace;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:#f2efe9;color:var(--ink);font-family:var(--font-body);line-height:1.55}
+  .wrap{max-width:60rem;margin:0 auto;padding:2.5rem 1.25rem 4rem}
+  .rule{height:2px;background:var(--wedgwood);margin-bottom:2rem}
+  h1{font-family:var(--font-display);font-size:2.1rem;margin:0 0 .25rem;letter-spacing:.01em}
+  .sub{color:var(--bronze);margin:0 0 2rem;font-size:.98rem}
+  .panel{background:var(--stone);border:1px solid #e2ddd2;padding:1.5rem;margin-bottom:1.5rem}
+  h2{font-family:var(--font-display);font-size:1.15rem;margin:0 0 .75rem;font-weight:600}
+  .value{font-family:var(--font-mono);font-size:4.2rem;line-height:1;letter-spacing:-.02em}
+  .band{font-family:var(--font-mono);font-size:.85rem;text-transform:uppercase;letter-spacing:.14em;margin-top:.6rem}
+  .asof{color:var(--limestone);font-family:var(--font-mono);font-size:.78rem;margin-top:.5rem}
+  .note{color:var(--bronze);font-size:.92rem;margin:.75rem 0 0}
+  table{width:100%;border-collapse:collapse;font-size:.9rem}
+  th{text-align:left;font-family:var(--font-mono);font-size:.7rem;text-transform:uppercase;letter-spacing:.1em;
+     color:var(--limestone);font-weight:400;border-bottom:1px solid #e2ddd2;padding:.5rem .4rem}
+  td{padding:.5rem .4rem;border-bottom:1px solid #efeae0}
+  td.n,th.n{text-align:right;font-family:var(--font-mono)}
+  .scale{display:flex;height:8px;margin:1rem 0 .4rem;border:1px solid #e2ddd2}
+  .scale div{flex:1}
+  .ticks{display:flex;justify-content:space-between;font-family:var(--font-mono);font-size:.68rem;color:var(--limestone)}
+  a{color:var(--wedgwood)}
+  .foot{color:var(--limestone);font-size:.82rem;margin-top:2rem}
+  .disclaimer{border-left:2px solid var(--gilt);padding-left:1rem;color:var(--bronze);font-size:.88rem}
+  .err{color:var(--terracotta)}
+  code{font-family:var(--font-mono);font-size:.85em;background:#efeae0;padding:.1rem .3rem}
+  @media (max-width:34rem){ .value{font-size:3rem} }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="rule"></div>
+  <h1>AP Credit Cycle Index</h1>
+  <p class="sub"><strong>APCCI</strong> · a daily, rules-based measure of where the US credit cycle stands —
+    <strong>0 = maximum froth</strong>, <strong>100 = maximum despair</strong>.</p>
+
+  <div class="panel">
+    <h2>Latest value</h2>
+    <div id="latest">Loading…</div>
+    <div class="scale">
+      <div style="background:#9fb3c8"></div><div style="background:#c3cfd9"></div>
+      <div style="background:#e8e2d5"></div><div style="background:#d8bfae"></div>
+      <div style="background:#c08a76"></div>
+    </div>
+    <div class="ticks"><span>0 froth</span><span>20</span><span>35</span><span>65</span><span>80</span><span>100 despair</span></div>
+  </div>
+
+  <div class="panel">
+    <h2>How today's number was computed</h2>
+    <p class="note">Every component, its raw input, its score, and its contribution. Download the five
+      series from FRED and you can reproduce the value by hand in a few minutes.</p>
+    <div id="components">—</div>
+  </div>
+
+  <div class="panel">
+    <h2>Published history</h2>
+    <div id="chart">—</div>
+    <p class="note">Published values are <strong>final</strong>. They are never revised — corrections
+      appear as new observations, never as edits to history.</p>
+  </div>
+
+  <div class="panel">
+    <h2>Data &amp; methodology</h2>
+    <table>
+      <tbody>
+        <tr><td>Full methodology</td><td><a href="https://github.com/Jiao-dotcum/AP-Capital/blob/main/docs/APCCI_METHODOLOGY.md">APCCI_METHODOLOGY.md</a></td></tr>
+        <tr><td>Download series (CSV)</td><td><a href="/api/index-value?format=csv">apcci.csv</a></td></tr>
+        <tr><td>Full series (JSON)</td><td><a href="/api/index-value?history=1">/api/index-value?history=1</a></td></tr>
+        <tr><td>Frozen specification</td><td><a href="/api/index-value?spec=1">/api/index-value?spec=1</a></td></tr>
+      </tbody>
+    </table>
+    <p class="note" id="spec-note"></p>
+  </div>
+
+  <p class="disclaimer"><strong>Not investment advice.</strong> The index measures market conditions.
+    It does not forecast returns, and no performance is claimed or implied. Inputs are public data
+    published by third parties; the index is not affiliated with, endorsed by, or derived from any
+    index provider.</p>
+
+  <p class="foot" id="foot"></p>
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id)
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))
+const bandColor = (v) => v < 20 ? '#3e5c76' : v < 35 ? '#5b7d9a' : v < 65 ? '#57534a' : v < 80 ? '#a8663f' : '#8c3b2e'
+
+fetch('/api/index-value').then((r) => r.json()).then((d) => {
+  const spec = d.spec || {}
+  $('spec-note').textContent = spec.name
+    ? `${spec.name} (${spec.ticker}) version ${spec.version}. Base date ${spec.baseDate}. ${spec.revisionPolicy || ''}`
+    : ''
+  $('foot').textContent = spec.version ? `APCCI ${spec.version} · values on a fixed 0–100 scale · computed from public FRED series.` : ''
+
+  if (!d.configured) {
+    $('latest').innerHTML = '<p class="err">The index backend is not configured yet — no values published.</p>'
+    return
+  }
+  const L = d.latest
+  if (!L) {
+    $('latest').innerHTML = '<p class="note">No value published yet. The index begins publishing at its base date.</p>'
+    return
+  }
+  $('latest').innerHTML =
+    `<div class="value" style="color:${bandColor(L.value)}">${L.value.toFixed(2)}</div>` +
+    `<div class="band" style="color:${bandColor(L.value)}">${esc(L.band)}</div>` +
+    `<div class="asof">observation date ${esc(L.obsDate)} · ${esc(L.ticker)} v${esc(L.version)}</div>`
+
+  const c = L.components || []
+  if (c.length) {
+    $('components').innerHTML =
+      '<table><thead><tr><th>Component</th><th>FRED series</th><th class="n">Raw</th>' +
+      '<th class="n">Score</th><th class="n">Weight</th><th class="n">Contribution</th></tr></thead><tbody>' +
+      c.map((x) => `<tr><td>${esc(x.label)}</td><td><a href="https://fred.stlouisfed.org/series/${esc(x.series)}">${esc(x.series)}</a></td>` +
+        `<td class="n">${x.raw}${x.unit === 'bp' ? 'bp' : ''}</td><td class="n">${Number(x.score).toFixed(2)}</td>` +
+        `<td class="n">${(x.weight * 100).toFixed(0)}%</td><td class="n">${Number(x.contribution).toFixed(2)}</td></tr>`).join('') +
+      `<tr><td colspan="5"><strong>APCCI</strong></td><td class="n"><strong>${L.value.toFixed(2)}</strong></td></tr>` +
+      '</tbody></table>'
+  }
+}).catch(() => { $('latest').innerHTML = '<p class="err">Could not load the index.</p>' })
+
+fetch('/api/index-value?history=1').then((r) => r.json()).then((d) => {
+  const h = (d.history || []).filter((x) => Number.isFinite(x.value))
+  if (h.length < 2) { $('chart').innerHTML = '<p class="note">Not enough published history to chart yet.</p>'; return }
+  const W = 900, H = 220, P = 28
+  const xs = (i) => P + (i / (h.length - 1)) * (W - 2 * P)
+  const ys = (v) => H - P - (v / 100) * (H - 2 * P)
+  const path = h.map((p, i) => `${i ? 'L' : 'M'}${xs(i).toFixed(1)},${ys(p.value).toFixed(1)}`).join('')
+  const grid = [0, 20, 35, 65, 80, 100].map((v) =>
+    `<line x1="${P}" y1="${ys(v)}" x2="${W - P}" y2="${ys(v)}" stroke="#e2ddd2" stroke-width="1"/>` +
+    `<text x="4" y="${ys(v) + 3}" font-size="10" fill="#8a857a" font-family="monospace">${v}</text>`).join('')
+  $('chart').innerHTML =
+    `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto" role="img" aria-label="APCCI published history">` +
+    grid + `<path d="${path}" fill="none" stroke="#3e5c76" stroke-width="1.5"/></svg>` +
+    `<div class="ticks"><span>${esc(h[0].obsDate)}</span><span>${h.length} published values</span><span>${esc(h[h.length - 1].obsDate)}</span></div>`
+}).catch(() => { $('chart').innerHTML = '<p class="note">Could not load history.</p>' })
+</script>
+</body>
+</html>

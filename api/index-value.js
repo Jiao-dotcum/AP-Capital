@@ -13,6 +13,27 @@ import { INDEX_NAME, INDEX_TICKER, INDEX_VERSION, INDEX_BASE_DATE, COMPONENTS, b
 //
 // Values are FINAL. A published observation date is never revised — see
 // docs/APCCI_METHODOLOGY.md and the ON CONFLICT DO NOTHING in db.js.
+
+// Pure: the published series as CSV, with a provenance header so a
+// downloaded file still says what it is and where the method lives once it
+// is detached from this endpoint. Band is quoted (it contains no commas
+// today, but a future band name might). Exported so it can be tested
+// without a database.
+export function toCsv(history, spec, now = new Date()) {
+  const lines = [
+    '# AP Credit Cycle Index (APCCI)',
+    '# scale: 0 = maximum froth, 100 = maximum despair',
+    '# published values are final and never revised',
+    `# version: ${spec.version} · base date: ${spec.baseDate}`,
+    `# methodology: ${spec.methodology}`,
+    `# generated: ${now.toISOString()}`,
+    '# not investment advice — measures conditions, not returns',
+    'obs_date,ticker,version,value,band',
+    ...history.map((h) => `${h.obsDate},${h.ticker},${h.version},${h.value},"${String(h.band).replace(/"/g, '""')}"`),
+  ]
+  return lines.join('\n') + '\n'
+}
+
 export default async function handler(req, res) {
   const spec = {
     name: INDEX_NAME,
@@ -32,6 +53,17 @@ export default async function handler(req, res) {
     if (!configured()) return res.status(200).json({ configured: false, spec })
 
     res.setHeader('Cache-Control', 's-maxage=300, stale-while-revalidate=3600')
+
+    // CSV of the full published series, so a researcher can use the index
+    // without scraping a JSON API or a web page. Content-Disposition makes
+    // it save as a file rather than render as text.
+    if (req.query?.format === 'csv') {
+      const history = (await getIndexHistory()) ?? []
+      res.setHeader('Content-Type', 'text/csv; charset=utf-8')
+      res.setHeader('Content-Disposition', 'attachment; filename="apcci.csv"')
+      return res.status(200).send(toCsv(history, spec, new Date()))
+    }
+
     if (req.query?.history === '1') {
       const history = (await getIndexHistory()) ?? []
       return res.status(200).json({ configured: true, spec, count: history.length, history })
