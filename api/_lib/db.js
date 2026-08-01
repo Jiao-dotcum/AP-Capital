@@ -94,6 +94,10 @@ const SCHEMA = `
   ALTER TABLE engine_runs ADD COLUMN IF NOT EXISTS risk JSONB;
   ALTER TABLE engine_runs ADD COLUMN IF NOT EXISTS credit JSONB;
   ALTER TABLE engine_runs ADD COLUMN IF NOT EXISTS credit_book JSONB;
+  -- The control arm: the same Core strategy with the ruin ceiling off, kept
+  -- purely to measure what the hardstop costs. Never traded, never fed back.
+  ALTER TABLE engine_runs ADD COLUMN IF NOT EXISTS shadow JSONB;
+  ALTER TABLE engine_runs ADD COLUMN IF NOT EXISTS shadow_book JSONB;
 
   CREATE TABLE IF NOT EXISTS fundamentals (
     id         BIGSERIAL PRIMARY KEY,
@@ -223,10 +227,10 @@ export async function insertEngineRun(run) {
   const p = pool()
   if (!p || !run) return false
   const res = await p.query(
-    `INSERT INTO engine_runs (seq, known_at, reading, hy_oas_bp, decision, orders, nav, pnl, risk, credit, world, book, credit_book, prev_hash, hash)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
+    `INSERT INTO engine_runs (seq, known_at, reading, hy_oas_bp, decision, orders, nav, pnl, risk, credit, shadow, world, book, credit_book, shadow_book, prev_hash, hash)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
      ON CONFLICT (hash) DO NOTHING`,
-    [run.seq, run.knownAt, run.reading, run.hyOasBp ?? null, run.decision, JSON.stringify(run.orders), run.nav, run.pnl ?? null, run.risk ?? null, run.credit ?? null, run.world, run.book, run.creditBook ?? null, run.prevHash, run.hash],
+    [run.seq, run.knownAt, run.reading, run.hyOasBp ?? null, run.decision, JSON.stringify(run.orders), run.nav, run.pnl ?? null, run.risk ?? null, run.credit ?? null, run.shadow ?? null, run.world, run.book, run.creditBook ?? null, run.shadowBook ?? null, run.prevHash, run.hash],
   )
   return res.rowCount > 0
 }
@@ -236,7 +240,7 @@ export async function getLatestRun() {
   const p = pool()
   if (!p) return null
   const { rows } = await p.query(
-    `SELECT seq, known_at, reading, hy_oas_bp, decision, orders, nav, pnl, risk, credit, world, book, credit_book, prev_hash, hash
+    `SELECT seq, known_at, reading, hy_oas_bp, decision, orders, nav, pnl, risk, credit, shadow, world, book, credit_book, shadow_book, prev_hash, hash
        FROM engine_runs ORDER BY seq DESC, created_at DESC LIMIT 1`,
   )
   if (!rows.length) return null
@@ -252,9 +256,11 @@ export async function getLatestRun() {
     pnl: r.pnl ?? null,
     risk: r.risk ?? null,
     credit: r.credit ?? null,
+    shadow: r.shadow ?? null,
     world: r.world,
     book: r.book,
     creditBook: r.credit_book ?? null,
+    shadowBook: r.shadow_book ?? null,
     prevHash: r.prev_hash,
     hash: r.hash,
   }
@@ -266,7 +272,7 @@ export async function getLatestRunSummary() {
   const p = pool()
   if (!p) return null
   const { rows } = await p.query(
-    `SELECT seq, known_at, decision, orders, nav, pnl, risk, credit, prev_hash, hash
+    `SELECT seq, known_at, decision, orders, nav, pnl, risk, credit, shadow, prev_hash, hash
        FROM engine_runs ORDER BY seq DESC, created_at DESC LIMIT 1`,
   )
   if (!rows.length) return null
@@ -280,6 +286,7 @@ export async function getLatestRunSummary() {
     pnl: r.pnl ?? null,
     risk: r.risk ?? null,
     credit: r.credit ?? null,
+    shadow: r.shadow ?? null,
     prevHash: r.prev_hash,
     hash: r.hash,
   }
@@ -414,7 +421,7 @@ export async function getChainRuns() {
   const p = pool()
   if (!p) return null
   const { rows } = await p.query(
-    `SELECT seq, known_at, reading, hy_oas_bp, decision, orders, nav, pnl, risk, credit, prev_hash, hash
+    `SELECT seq, known_at, reading, hy_oas_bp, decision, orders, nav, pnl, risk, credit, shadow, prev_hash, hash
        FROM engine_runs ORDER BY seq ASC, created_at ASC`,
   )
   // known_at comes back as a JS Date; the chain was hashed over the ISO
@@ -430,6 +437,7 @@ export async function getChainRuns() {
     pnl: r.pnl ?? null,
     risk: r.risk ?? null,
     credit: r.credit ?? null,
+    shadow: r.shadow ?? null,
     prevHash: r.prev_hash,
     hash: r.hash,
   }))

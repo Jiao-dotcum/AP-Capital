@@ -13,7 +13,7 @@ Oaktree engine: credit-cycle dial, credit screens, dry powder; sections I–III)
 and AP All Weather Core (the Bridgewater engine: macro regime reading,
 risk-parity book at fixed 1.0× gross; sections IV–IX) — over shared firm
 infrastructure (allocation governance, paper-trading OMS, 8-layer agent firm,
-walk-forward backtest; sections X–XIII), plus a growing serverless backend
+walk-forward backtest; sections X–XIV), plus a growing serverless backend
 (`api/`) that feeds it live FRED and market data. The owner intends to raise real capital and route it through this
 machine eventually; today everything is **simulated or paper**, and the code
 enforces that boundary (see The Charter, bottom). Treat every change as if a
@@ -48,7 +48,7 @@ No test framework or linter is configured. Verification is the pipeline below
    is what it is*, then push to the working branch **and** `main`
    (`git push origin <branch>:main`) — Vercel deploys `main`.
 
-Current expected section count: **13** (I–XIII). Update this number here and
+Current expected section count: **14** (I–XIV). Update this number here and
 in the verify skill when you add or remove a section.
 
 ## Architecture
@@ -225,7 +225,15 @@ function. Never advance the world any other way.
   `ANCHOR_REPO`, append-only JSONL, idempotent — an unchanged head commits
   nothing — and it claims only "this head existed at this time", never that
   the chain is valid, which `/api/chain` proves independently),
-  `journal.js` (the daily journal read endpoint), `_lib/creditBook.js` (the
+  `journal.js` (the daily journal read endpoint; each entry also carries the
+  control arm), **the control arm** (in `_lib/engine.js`: a SECOND Core book
+  stepped every run with `ruinBreached` forced false, sealed as `shadow` and
+  carried as `shadow_book`. It re-plans against its OWN positions — reusing
+  the canonical order sizes would drift for a second reason and stop
+  measuring the ceiling alone. `shadow.divergence` is what the 2.5% hardstop
+  has cost or saved, cumulatively, in dollars. It is a MEASUREMENT: it never
+  trades, never feeds a decision, and is labeled counterfactual in the UI
+  and the journal), `_lib/creditBook.js` (the
   Cycle Credit mandate's own $1M live paper ledger: performing sleeve marks
   off the real screen — now `tradedIssuers(world.realIssuers)`, real names
   included — distressed off the CLO proxy gated by triggers, orders with
@@ -334,6 +342,23 @@ unless it follows the rule.
   crisis-correlation story invisible. → *Rule: cross-asset correlation claims
   are measured within the `RISK_ON` cohort, and the crisis mechanism lives in
   `stressAmp` (the shared shock amplifies in risk-off months).*
+- **The buy checked against a class it was about to shrink.** `planOrders`
+  sorted purely by descending notional, so a large BUY could be
+  compliance-checked *before* the SELL that freed room in its class.
+  `preTrade` sums a class from CURRENT holdings, so the buy was measured
+  against positions the same plan was about to dispose of, vetoed for a
+  breach the completed plan would never have caused, and the book then sat
+  ~4pp UNDER the cap it was accused of exceeding. Invisible for months: a
+  routine rebalance never shifts enough within one class to trip it, and on
+  the violent days that would, the ruin ceiling halted the buys first — so
+  the bug hid behind the very hardstop that masked it. Found the day the
+  control arm (which ignores that hardstop) first ran a breach day. →
+  *Rule: `planOrders` sequences SELLS before BUYS, then by size within each
+  side. Freeing capacity before deploying it is how a desk actually
+  rebalances, and it is the only ordering under which a plan that is
+  compliant as a whole is also compliant order-by-order. Corollary: when a
+  safety gate masks a code path, something must exercise that path anyway —
+  a control arm is not only a measurement, it is coverage.*
 - **The sleeve that was 78% nothing.** `stepCreditBook`'s P&L summed each
   held name's weighted return and stopped there — correct only because the
   ten simulated issuers always had five clear the gates and sum to exactly
@@ -415,7 +440,7 @@ unless it follows the rule.
 A change is done when ALL of these hold:
 
 - [ ] `npm run build` exits 0.
-- [ ] Headless Chromium on `dist/`: `document.querySelectorAll('section').length === 13`;
+- [ ] Headless Chromium on `dist/`: `document.querySelectorAll('section').length === 14`;
       zero console/page errors after excluding `/ERR_TUNNEL|Failed to load resource/`;
       key feature markers present case-insensitively.
 - [ ] Determinism: any touched engine entry point run twice yields

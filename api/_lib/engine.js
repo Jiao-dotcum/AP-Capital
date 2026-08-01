@@ -61,6 +61,7 @@ export const payloadOf = (run) => ({
   ...(run.pnl != null ? { pnl: run.pnl } : {}),
   ...(run.risk != null ? { risk: run.risk } : {}),
   ...(run.credit != null ? { credit: run.credit } : {}),
+  ...(run.shadow != null ? { shadow: run.shadow } : {}),
 })
 
 // A short, stable fingerprint of the exact price map used to mark the book.
@@ -275,6 +276,48 @@ export function runEngineStep(prevRun, { reading, hyOasBp = null, knownAt, price
     ruinCeiling: RUIN_CEILING,
   }
 
+  // ————— The control arm: the same strategy with the ruin ceiling off —————
+  // A second Core book, identical to the canonical one in every respect
+  // EXCEPT that `ruinBreached` is never passed to compliance. It exists to
+  // MEASURE the hardstop rather than assume it: the cumulative gap between
+  // the two NAVs is what the 2.5% ceiling has cost (or saved) since
+  // inception, in dollars, on the firm's own data.
+  //
+  // It must re-plan against its OWN positions and NAV, not merely skip the
+  // veto on the canonical orders. Once the books diverge their target
+  // QUANTITIES differ even though their target WEIGHTS are identical — a
+  // counterfactual that reused the canonical order sizes would drift for a
+  // second reason and stop measuring the ceiling alone.
+  //
+  // This is a measurement, not a second strategy. It never trades, never
+  // feeds the Firm's decisions, and is labeled a control arm everywhere it
+  // surfaces (see docs/RISK_POLICY.md §4).
+  const shadow0 = prevRun?.shadowBook ?? initBook()
+  const shadowMarked = reconcile(shadow0, markReturns, `R${world.releaseN}`)
+  const shadowExec = execute(
+    shadowMarked,
+    planOrders(shadowMarked, targetPositions(shadowMarked, coreTargets(rp.weights, pa.tilt))),
+    { ruinBreached: false },
+  )
+  const shadowNavStart = +bookNav(shadow0).toFixed(2)
+  const shadowNavMarked = +bookNav(shadowMarked).toFixed(2)
+  const shadowNav = +bookNav(shadowExec.book).toFixed(2)
+  const shadow = {
+    navStart: shadowNavStart,
+    navEnd: shadowNav,
+    dayPnl: +(shadowNavMarked - shadowNavStart).toFixed(2),
+    tradingCost: +(shadowNav - shadowNavMarked).toFixed(2),
+    filled: shadowExec.filled,
+    vetoed: shadowExec.vetoed, // cap breaches still bind — only the RUIN gate is off
+    // The number the whole arm exists to produce. Positive = the ceiling has
+    // cost the firm money; negative = it has protected it.
+    divergence: +(shadowNav - nav).toFixed(2),
+    divergencePct: +((shadowNav / nav - 1) * 100).toFixed(3),
+    haltedToday: ruinBreached,
+    haltedDays: (prevRun?.shadow?.haltedDays ?? 0) + (ruinBreached ? 1 : 0),
+    orders: shadowExec.book.blotter.slice(0, shadowExec.filled + shadowExec.vetoed),
+  }
+
   // ————— The Cycle Credit mandate's paper book, stepped on the same run —
   // its own $1M NAV, trades with reasons, sealed alongside the Core's. The
   // traded universe (tradedIssuers) is the SAME union world.js's screen used
@@ -299,9 +342,11 @@ export function runEngineStep(prevRun, { reading, hyOasBp = null, knownAt, price
     pnl,
     risk,
     credit,
+    shadow,
     world,
     book,
     creditBook: creditStep.book,
+    shadowBook: shadowExec.book,
     prevHash: prevRun?.hash ?? null,
   }
   run.hash = runHash(run.prevHash, payloadOf(run))

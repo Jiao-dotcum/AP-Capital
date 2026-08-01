@@ -57,6 +57,7 @@ import AllWeather from './components/AllWeather.jsx'
 import PureAlpha from './components/PureAlpha.jsx'
 import Desks from './components/Desks.jsx'
 import Origination from './components/Origination.jsx'
+import ControlArm from './components/ControlArm.jsx'
 import Register from './components/Register.jsx'
 import Allocation from './components/Allocation.jsx'
 import MandateTrack from './components/MandateTrack.jsx'
@@ -649,6 +650,17 @@ export default function App() {
       <section className="section">
         <SectionHead
           numeral="XII"
+          title="The Control Arm"
+          note="A second Core book running the same strategy with the 2.5% risk-of-ruin ceiling switched off — identical targets, marks, and position caps, differing only in whether new buys are halted. It exists to measure the hardstop rather than assume it. Counterfactual only: it holds no capital, never trades, and never feeds a decision."
+        />
+        <ControlArm journal={journal} />
+      </section>
+
+      <ColumnDivider />
+
+      <section className="section">
+        <SectionHead
+          numeral="XIII"
           title="The Firm"
           note="Every employee from intern to Co-CEO is an agent with a role, tools, and an artifact. Decisions flow up; nothing trades without passing each layer."
         />
@@ -668,7 +680,7 @@ export default function App() {
 
       <section className="section">
         <SectionHead
-          numeral="XIII"
+          numeral="XIV"
           title="Safeguards"
           note="The machine assumes it will sometimes be wrong. The question is only how much that costs. The proving ground below is also the court record of the decoupling: the fixed-mix book beat the dial-coupled book on every axis."
         />

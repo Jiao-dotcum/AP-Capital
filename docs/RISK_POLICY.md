@@ -87,7 +87,17 @@ Sealed into each journal record (`risk`):
    journal record.
 2. **Ruin ceiling**: risk-of-ruin > 2.5% halts ALL new buys (sells still
    clear) until the reading normalizes. The journal marks these sessions
-   "reduce-only".
+   "reduce-only". **This rule is measured, not assumed.** A control arm runs
+   the same Core strategy every day with the ceiling switched off —
+   identical targets, marks and position caps, differing only in whether
+   buys are halted — and the running gap between the two NAVs is what the
+   ceiling has cost or saved since inception (`shadow.divergence`, sealed in
+   every record; Section XII of the dashboard). The arm holds no capital,
+   never trades, and never feeds a decision. Note what a short record can
+   and cannot say: a hardstop earns its keep in the tail, so a sample
+   without a severe drawdown in it cannot price the protection, only the
+   foregone return. Treat the number as accumulating evidence, and do not
+   relax the ceiling on a quiet-period reading of it.
 3. **Dry powder**: the opportunistic sleeve deploys only when ≥ 2 of 3
    distress triggers arm (distress ratio > 10%, HY OAS > 700bp, forced-seller
    outflows). Until then powder stays powder.

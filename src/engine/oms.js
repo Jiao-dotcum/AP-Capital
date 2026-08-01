@@ -88,7 +88,16 @@ export function planOrders(book, targets) {
     if (Math.abs(dq * book.marks[a.id]) < 1) continue // ignore sub-$1 drift
     orders.push({ id: a.id, name: a.name, cls: CLASS_OF[a.id], side: dq > 0 ? 'BUY' : 'SELL', qty: Math.abs(dq), price: book.marks[a.id] })
   }
-  return orders.sort((x, y) => y.qty * y.price - x.qty * x.price)
+  // SELLS FIRST, then largest drift first within each side. Ordering by size
+  // alone let a BUY be compliance-checked while positions the same plan was
+  // about to SELL were still on the book: preTrade sums the class from
+  // CURRENT holdings, so the buy was measured against a class that had not
+  // yet been reduced, and got vetoed for a breach the completed plan would
+  // never have caused. The book then sat ~4pp UNDER the cap it was accused
+  // of exceeding. Freeing capacity before deploying it is also simply how a
+  // desk rebalances, and it matches the rule that sells always clear.
+  const rank = (o) => (o.side === 'SELL' ? 0 : 1)
+  return orders.sort((x, y) => rank(x) - rank(y) || y.qty * y.price - x.qty * x.price)
 }
 
 // Pre-trade compliance: sells always clear (they reduce risk); buys must keep

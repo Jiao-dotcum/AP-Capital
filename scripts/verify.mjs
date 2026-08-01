@@ -10,7 +10,7 @@ import { join, extname, dirname } from 'path'
 import { fileURLToPath } from 'url'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
-const SECTION_COUNT = 13 // update when adding/removing a dashboard section
+const SECTION_COUNT = 14 // update when adding/removing a dashboard section
 const MARKERS = [
   'The Machine', 'The Cycle', 'Point-in-Time Register', 'The Origination Desk',
   'Sourcing Engine', 'Live Fundamentals — SEC EDGAR', 'ratings-transition matrix',
@@ -18,6 +18,8 @@ const MARKERS = [
   'Believability standings', 'Merger Arbitrage',
   // The two-mandate structure (the decoupling)
   'AP Cycle Credit', 'AP All Weather Core', 'The Two Mandates',
+  // The control arm: the hardstop measured rather than assumed
+  'The Control Arm',
 ]
 
 const fails = []
@@ -136,6 +138,46 @@ check('P&L identity: start + day + cost = end',
 check('risk statement sealed (CVaR, seasons, drawdown)',
   run1.risk.cvar95Dollar < 0 && run1.risk.seasons.length === 4 && 'currentPct' in run1.risk.drawdown)
 check('no realIssuers = pre-real-desk behavior unchanged', run1.world.realIssuers.length === 0 && run1.decision.realIssuers.length === 0)
+
+// ————— The control arm: the hardstop measured, not assumed —————
+// A second Core book running the same strategy with the ruin ceiling off.
+// On a calm day the two books must be IDENTICAL — any divergence there means
+// something other than the ceiling is driving them apart, and the arm would
+// no longer be measuring the ceiling alone.
+const calmIn = { reading: { g: 0.3, i: -0.2, source: 'live' }, hyOasBp: 380, knownAt: '2026-02-01T00:00:00.000Z', prices: null }
+const calmRun = runEngineStep(null, calmIn)
+check('control arm sealed into the run', calmRun.shadow != null && Number.isFinite(calmRun.shadow.navEnd))
+check('calm day: control arm identical to canonical (isolates the ceiling)',
+  Math.abs(calmRun.shadow.divergence) < 0.01 && calmRun.shadow.haltedToday === false,
+  `divergence ${calmRun.shadow.divergence}`)
+// A violent reading breaches the ceiling: the canonical book halts buys, the
+// control arm does not, and the two must diverge.
+const shockRun = runEngineStep(calmRun, { reading: { g: -2.6, i: 2.6, source: 'live' }, hyOasBp: 1150, knownAt: '2026-02-02T00:00:00.000Z', prices: null })
+check('breach: canonical halts, control arm does not',
+  shockRun.decision.ruinBreached && shockRun.shadow.haltedToday &&
+  shockRun.decision.vetoed > 0 && shockRun.shadow.filled > shockRun.decision.filled,
+  `canonical filled ${shockRun.decision.filled}/vetoed ${shockRun.decision.vetoed}, arm filled ${shockRun.shadow.filled}`)
+check('control arm never vetoes for the ruin reason',
+  !shockRun.shadow.orders.some((o) => o.status === 'VETOED' && /ruin/i.test(o.reason || '')))
+check('breach: books diverge and halted days accumulate',
+  Math.abs(shockRun.shadow.divergence) > 0 && shockRun.shadow.haltedDays === 1,
+  `gap $${shockRun.shadow.divergence}`)
+check('control arm is hash-sealed (tampering breaks the chain)',
+  verifyChain([calmRun, shockRun]).ok &&
+  !verifyChain([calmRun, { ...shockRun, shadow: { ...shockRun.shadow, divergence: 999 } }]).ok)
+// SELLS must be planned before BUYS. Ordering by size alone let a buy be
+// compliance-checked while positions the same plan was about to sell were
+// still on the book — a spurious class-cap veto that left the book ~4pp
+// UNDER the cap it was accused of breaching.
+const sellsFirst = planOrders(
+  { ...b0, positions: { usEq: { qty: 400, avgCost: 100 } }, marks: b0.marks },
+  targetPositions(b0, rr1.rp.weights),
+)
+check('planOrders sequences sells before buys',
+  sellsFirst.every((o, k) => k === 0 || !(o.side === 'SELL' && sellsFirst[k - 1].side === 'BUY')),
+  sellsFirst.map((o) => o.side).join(','))
+check('control-arm rebalance is clean (no spurious cap vetoes)',
+  shockRun.shadow.vetoed === 0, `${shockRun.shadow.vetoed} vetoed`)
 
 // The real trading desk end to end through runEngineStep: a real issuer
 // actually reaches the credit book's orders, gets sealed in decision.realIssuers

@@ -7,6 +7,10 @@ import { configured, getChainRuns } from './_lib/db.js'
 // standing rule binds). All of it verbatim from the hash-chained records —
 // the journal IS the audit trail, not a report generated from it.
 //
+// Each entry also carries the control arm (`shadow`): the same Core strategy
+// run with the 2.5% ruin ceiling switched off, so the cumulative cost of the
+// hardstop is a measured number in the record rather than an assumption.
+//
 //   GET /api/journal            → last 30 entries
 //   GET /api/journal?limit=90   → more (capped at 365)
 export default async function handler(req, res) {
@@ -25,6 +29,10 @@ export default async function handler(req, res) {
         decision: r.decision,
         trades: r.orders, // Core book: side/qty/fill + grade + rationale, as sealed
         credit: r.credit ?? null, // Cycle Credit book: { pnl, orders }, as sealed
+        // The control arm: the same Core strategy with the ruin ceiling off.
+        // Absent on runs sealed before it existed, which is why it is
+        // null-guarded rather than assumed.
+        shadow: r.shadow ?? null,
         risk: r.risk ?? null,
         hash: r.hash,
       }))
