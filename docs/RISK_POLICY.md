@@ -122,6 +122,20 @@ Sealed into each journal record (`risk`):
   `tradingCost` in every journal entry, never netted silently into P&L.
 - **Marks**: real daily closes for every proxy the price feed covers,
   factor-modeled otherwise — and each record says which.
+- **The decide-price and the fill-price are the same close — a known
+  simplification.** Each run is one batch: mark yesterday's book to
+  *today's* close, compute today's targets from today's reading, then fill
+  the resulting orders at that *same* close. A real desk cannot do this —
+  by the time today's closing print is known, the window to transact at it
+  is already gone. Every fill here is therefore priced at a level that, in
+  live trading, could only be approximated (next-open, or a market-on-close
+  order submitted before the print). This is a standard backtest/paper-sim
+  shortcut, not unique to the control arm, and it has never been stated
+  outright before this line. It does not bias the ceiling measurement in
+  §4.2 — the canonical and control books share the exact same fills, so the
+  gap between them isolates the ceiling regardless. It DOES mean neither
+  book's absolute return should be read as "what a live account would have
+  earned" without that adjustment.
 
 ## 6. The audit trail
 
