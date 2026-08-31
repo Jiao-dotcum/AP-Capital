@@ -191,7 +191,13 @@ export function runEngineStep(prevRun, { reading, hyOasBp = null, knownAt, price
     posture: posture.word,
     sleeveWeights: houseView(dial), // firm five-sleeve view: Core fixed, credit dial-scoped, %
     creditSleeves: creditWeightsFor(dial), // [performing, distressed, powder] % of the credit mandate
-    rpWeights: Object.fromEntries(Object.entries(rp.weights).map(([k, v]) => [k, +v.toFixed(4)])), // Core book, fraction of NAV
+    rpWeights: Object.fromEntries(Object.entries(rp.weights).map(([k, v]) => [k, +v.toFixed(4)])), // risk parity BEFORE the overlay
+    // What the book actually targeted: risk parity WITH the Pure Alpha tilt,
+    // long-only clamped, gross ≤ 1. rpWeights above is the pre-overlay input,
+    // so anything mirroring the traded book (the broker) must use THIS.
+    coreTargetWeights: Object.fromEntries(
+      Object.entries(coreTargets(rp.weights, pa.tilt)).map(([k, v]) => [k, +v.toFixed(4)]),
+    ),
     pureAlpha: { fired: pa.fired, gross: pa.gross, tilt: pa.tilt }, // the overlay actually traded
     gross: +rp.gross.toFixed(3), // fixed CORE_GROSS by construction
     triggersArmed: triggers.filter((t) => t.armed).map((t) => t.name),

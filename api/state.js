@@ -1,4 +1,11 @@
-import { configured, getLatestState, getLatestPrices, getLatestRunSummary, getLatestFundamentals } from './_lib/db.js'
+import {
+  configured,
+  getLatestState,
+  getLatestPrices,
+  getLatestRunSummary,
+  getLatestFundamentals,
+  getLatestBrokerRun,
+} from './_lib/db.js'
 
 // ————— The read endpoint —————
 // The dashboard calls this on load. Before the database is provisioned it
@@ -11,11 +18,12 @@ import { configured, getLatestState, getLatestPrices, getLatestRunSummary, getLa
 export default async function handler(req, res) {
   try {
     if (!configured()) return res.status(200).json({ configured: false })
-    const [state, prices, run, fundamentals] = await Promise.all([
+    const [state, prices, run, fundamentals, broker] = await Promise.all([
       getLatestState(),
       getLatestPrices(),
       getLatestRunSummary(),
       getLatestFundamentals(),
+      getLatestBrokerRun(),
     ])
     // Cache at the edge for a minute — the ingest runs at most daily.
     res.setHeader('Cache-Control', 's-maxage=60, stale-while-revalidate=600')
@@ -30,6 +38,10 @@ export default async function handler(req, res) {
       run: run ?? undefined,
       stale,
       fundamentals: fundamentals ?? undefined,
+      // The paper-broker mirror of the latest mirrored run: next-open fills
+      // on a real venue, against the same targets. Absent until the broker
+      // keys are set — the dashboard reads it as "not wired" and says so.
+      broker: broker ?? undefined,
     })
   } catch (err) {
     return res.status(200).json({ configured: false, error: String(err.message || err) })

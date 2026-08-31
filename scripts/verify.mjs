@@ -255,6 +255,66 @@ check('anchor reads back the last head (idempotency input)',
   anchor.lastAnchoredHead(anchor.appendAnchorLine(aLog, aRec)) === 'bbb')
 check('anchor survives a corrupt trailing line', anchor.lastAnchoredHead(`${aLog}{oops`) === 'aaa')
 
+// ————— The Alpaca PAPER broker: next-open execution —————
+// The venue is unreachable from this sandbox, so what is checked here is what
+// can be checked without it: the Charter guard (paper host only, own key
+// pair), inertness when unconfigured, and the pure sizing/planning transforms
+// that decide what gets submitted. The live round-trip is confirmed only by
+// the owner's curl against the deployed app (the sandbox-403 rule).
+const broker = await import(join(ROOT, 'api/_lib/broker.js'))
+const savedBk = [process.env.ALPACA_PAPER_KEY_ID, process.env.ALPACA_PAPER_SECRET_KEY]
+delete process.env.ALPACA_PAPER_KEY_ID
+delete process.env.ALPACA_PAPER_SECRET_KEY
+check('broker no-ops when unconfigured', broker.brokerConfigured() === false)
+check('unconfigured broker returns {configured:false}',
+  same(await broker.stepBroker({ seq: 1, weights: {}, prices: {} }), { configured: false }))
+// Market-data keys working must never imply order submission is on.
+process.env.ALPACA_KEY_ID = 'x'
+process.env.ALPACA_SECRET_KEY = 'y'
+check('market-data keys alone do NOT arm the broker', broker.brokerConfigured() === false)
+delete process.env.ALPACA_KEY_ID
+delete process.env.ALPACA_SECRET_KEY
+if (savedBk[0] !== undefined) process.env.ALPACA_PAPER_KEY_ID = savedBk[0]
+if (savedBk[1] !== undefined) process.env.ALPACA_PAPER_SECRET_KEY = savedBk[1]
+// The Charter: no configuration mistake may route this at real money.
+const brokerSrc = readFileSync(join(ROOT, 'api/_lib/broker.js'), 'utf8')
+// Every alpaca.markets host in the file must be the paper one. `paper-api`
+// CONTAINS `api.alpaca.markets`, so match the whole host, not a substring.
+const alpacaHosts = brokerSrc.match(/[a-z-]*\.?alpaca\.markets/g) ?? []
+check('broker host is hard-coded to the PAPER endpoint',
+  brokerSrc.includes("'https://paper-api.alpaca.markets'") &&
+  alpacaHosts.every((h) => h === 'paper-api.alpaca.markets'),
+  alpacaHosts.join(','))
+// Sizing: whole shares off REAL account equity, never a guess.
+const bPrices = { SPY: { close: 500 }, TLT: { close: 90 } }
+const bShares = broker.targetShares({ usEq: 0.4, ust30: 0.3, cash: 0.3 }, 50_000, bPrices)
+check('broker sizes whole shares off account equity',
+  bShares.SPY === 40 && bShares.TLT === 166, JSON.stringify(bShares))
+check('cash is the residual, never an order (no BIL order)', bShares.BIL === undefined)
+check('no price ⇒ no order, never an estimate',
+  broker.targetShares({ usEq: 0.4 }, 50_000, {}).SPY === undefined)
+// Planning: sells first, for the same reason the OMS sequences them first.
+const bOrders = broker.planBrokerOrders({ SPY: 10, TLT: 0, GLD: 5 }, { SPY: 4, TLT: 30, GLD: 5 })
+check('broker plans sells before buys', bOrders[0].side === 'sell' && bOrders[0].ticker === 'TLT')
+check('broker skips zero-drift lines', !bOrders.some((o) => o.ticker === 'GLD'))
+check('an explicit zero target IS sold', bOrders.some((o) => o.ticker === 'TLT' && o.qty === 30))
+// A missing close must not read as "target zero" — that would liquidate a
+// real position on a data outage. Absent from targets = no opinion = hold.
+check('a held ticker with no price is left alone, never liquidated',
+  broker.planBrokerOrders({ SPY: 10 }, { SPY: 10, IEF: 99 }).length === 0)
+check('broker order ids are deterministic per (run, ticker)',
+  broker.clientOrderId(42, 'SPY') === 'apcap-42-SPY' &&
+  broker.seqOfClientOrderId('apcap-42-SPY') === 42 &&
+  broker.seqOfClientOrderId('someone-elses-order') === null)
+// The chain must not depend on a live venue: the broker is a separate table
+// that CITES the run hash, so verifyChain stays a pure recomputation.
+check('broker output is NOT in the hashed payload',
+  !Object.prototype.hasOwnProperty.call(payloadOf({ ...calmRun, broker: { equity: 1 } }), 'broker'))
+// What the broker mirrors must be the POST-overlay targets, not raw risk parity.
+check('run seals the post-tilt targets the broker mirrors',
+  calmRun.decision.coreTargetWeights != null &&
+  Object.keys(calmRun.decision.coreTargetWeights).length > 0)
+
 // ————— The published index (APCCI) —————
 // A published index's whole claim is that a stranger can recompute it. What
 // must hold: deterministic, weights sum to 1, anchors well-formed, real

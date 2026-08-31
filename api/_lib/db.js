@@ -99,6 +99,30 @@ const SCHEMA = `
   ALTER TABLE engine_runs ADD COLUMN IF NOT EXISTS shadow JSONB;
   ALTER TABLE engine_runs ADD COLUMN IF NOT EXISTS shadow_book JSONB;
 
+  -- The Alpaca PAPER broker mirror: what a real venue did with the run's
+  -- target weights, filling at the NEXT open instead of the same close.
+  --
+  -- Deliberately its OWN table, NOT a column on engine_runs. The chain's
+  -- payload must stay a pure function of the run's inputs (runEngineStep
+  -- computes the hash before any network call, and verifyChain recomputes it
+  -- from stored fields alone). A live venue's account equity and fill prices
+  -- are neither pure nor knowable at hash time, so sealing them into the
+  -- payload would make the chain unverifiable. Instead each broker row CITES
+  -- the run hash it mirrors: the link is auditable, the chain stays provable.
+  CREATE TABLE IF NOT EXISTS broker_runs (
+    id         BIGSERIAL PRIMARY KEY,
+    seq        INTEGER NOT NULL,
+    run_hash   TEXT NOT NULL,
+    known_at   TIMESTAMPTZ NOT NULL,
+    equity     DOUBLE PRECISION,
+    payload    JSONB NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+  );
+  -- One broker submission per run: a re-ingest of the same seq records
+  -- nothing new, matching the chain's own "decisions, not invocations" rule.
+  CREATE UNIQUE INDEX IF NOT EXISTS broker_runs_seq_idx ON broker_runs (seq);
+  CREATE INDEX IF NOT EXISTS broker_runs_recent_idx ON broker_runs (created_at DESC);
+
   CREATE TABLE IF NOT EXISTS fundamentals (
     id         BIGSERIAL PRIMARY KEY,
     ticker     TEXT NOT NULL,
@@ -335,6 +359,34 @@ export async function getLatestFundamentals() {
     knownAt: r.known_at,
     source: r.source,
   }))
+}
+
+// ————— The Alpaca paper broker mirror —————
+// ON CONFLICT DO NOTHING on seq: a re-ingest of an already-mirrored run
+// records nothing. Returns whether a NEW row was written, so the caller can
+// tell "submitted" from "already submitted" without reading back.
+export async function insertBrokerRun({ seq, runHash, knownAt, equity, payload }) {
+  const p = pool()
+  if (!p) return false
+  const res = await p.query(
+    `INSERT INTO broker_runs (seq, run_hash, known_at, equity, payload)
+     VALUES ($1,$2,$3,$4,$5)
+     ON CONFLICT (seq) DO NOTHING`,
+    [seq, runHash, knownAt, equity ?? null, JSON.stringify(payload)],
+  )
+  return res.rowCount > 0
+}
+
+export async function getLatestBrokerRun() {
+  const p = pool()
+  if (!p) return null
+  const { rows } = await p.query(
+    `SELECT seq, run_hash, known_at, equity, payload
+       FROM broker_runs ORDER BY seq DESC, created_at DESC LIMIT 1`,
+  )
+  if (!rows.length) return null
+  const r = rows[0]
+  return { seq: r.seq, runHash: r.run_hash, knownAt: r.known_at, equity: r.equity, ...r.payload }
 }
 
 // ————— The published index (APCCI) —————

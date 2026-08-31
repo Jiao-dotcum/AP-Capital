@@ -213,6 +213,15 @@ function. Never advance the world any other way.
   change, and runs sealed before it existed simply lack the key and still
   verify — adding it as a top-level field would have silently broken every
   historical hash),
+  `_lib/broker.js` (**the Alpaca PAPER broker**: mirrors each fresh run's
+  `decision.coreTargetWeights` to a real venue as market-on-open orders
+  (`opg`), so fills land at the NEXT open instead of the same close — the gap
+  between it and the paper book prices the same-close shortcut. Host
+  hard-coded to `paper-api.alpaca.markets`; gated on its own
+  `ALPACA_PAPER_KEY_ID`/`ALPACA_PAPER_SECRET_KEY` pair, never the market-data
+  keys. Deliberately **outside** the hash chain — a live venue's equity and
+  fills aren't knowable at hash time; `broker_runs` rows cite the run hash
+  instead),
   `_lib/edgar.js` (SEC XBRL fundamentals server-side, gated on
   `SEC_USER_AGENT` — SEC wants an identifying UA, not a key; reuses the
   client's `deriveFundamentals` verbatim), `override.js` (the Charter's human

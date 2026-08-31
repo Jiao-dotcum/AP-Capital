@@ -223,6 +223,60 @@ The anchor runs in its own try/catch after the engine step: a publishing
 failure never fails the run that produced the data, and surfaces as
 `anchorError`.
 
+### The Alpaca paper broker — next-open execution on a real venue
+
+The paper book decides and fills at the *same* close (see
+`docs/RISK_POLICY.md` §5). No real account can do that: once the closing
+print exists, the chance to trade at it is gone. This slice submits the same
+run's Core target weights to an **Alpaca paper account** as market-on-open
+orders, so they fill at the next session's opening auction — a price nobody
+knows at decision time.
+
+It will not reproduce the paper book's numbers, and is not meant to. **The
+gap between the two is the measurement**: what the same-close shortcut is
+worth in dollars on a real venue, the same way the control arm measures the
+ruin ceiling instead of assuming it.
+
+1. **Get paper-trading keys** at alpaca.markets → Paper Trading → API Keys.
+   These are *different* keys from the market-data pair already configured.
+2. **Set two env vars** in Vercel (Production):
+   - `ALPACA_PAPER_KEY_ID`
+   - `ALPACA_PAPER_SECRET_KEY`
+   Deliberately separate names: having market data working must never imply
+   order submission is on.
+3. **Redeploy**, then run the ingest. Look for
+   `"broker": { "recorded": true, "equity": ..., "submitted": N,
+   "fillTiming": "next-open (market-on-open)" }`.
+
+**Safety, by construction:**
+
+- The host is **hard-coded** to `paper-api.alpaca.markets`. Live keys against
+  it simply fail to authenticate, so no configuration mistake can route this
+  at real money. `scripts/verify.mjs` asserts every Alpaca host in the file
+  is the paper one.
+- Orders carry a deterministic `client_order_id` (`apcap-<seq>-<TICKER>`).
+  Alpaca rejects duplicates, so a re-run of the same seq cannot
+  double-submit — the venue itself enforces idempotency.
+- Sizing is **whole shares off the real account equity**; the rounding
+  residual stays in cash. No fractional or notional orders (market-on-open
+  doesn't take them).
+- It runs only on a **freshly inserted** run — a quiet day produced no new
+  decision, so there is nothing new to mirror.
+- Its own try/catch: a venue outage surfaces as `brokerError` and never
+  fails the run that produced the data. It never feeds back into a decision.
+
+**Why it is not in the hash chain.** `runEngineStep` computes the hash before
+any network call, and `verifyChain` recomputes it from stored fields alone. A
+live venue's account equity and fill prices are neither pure nor knowable at
+hash time, so sealing them into the payload would make the chain
+unverifiable. Broker records live in their own append-only `broker_runs`
+table and **cite** the run hash they mirror. The link is auditable; the chain
+stays provable.
+
+**Reading fills.** An order queued after the close cannot fill until the next
+open, so `submitted` on run N is confirmed by `recentFills` on run N+1.
+That lag is real, not a defect.
+
 ### The dial override (human ratification, canonical)
 
 The Charter's human override now binds the canonical run, not just one

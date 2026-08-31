@@ -5,6 +5,7 @@ import { secConfigured, fetchFundamentals } from './_lib/edgar.js'
 import { buildRealIssuers } from './_lib/realIssuers.js'
 import { runEngineStep, unchangedSinceRun } from './_lib/engine.js'
 import { anchorConfigured, anchorChainHead } from './_lib/anchor.js'
+import { brokerConfigured, stepBroker } from './_lib/broker.js'
 import { computeIndex, bandOf, INDEX_TICKER } from '../src/engine/creditIndex.js'
 import {
   configured,
@@ -17,6 +18,7 @@ import {
   getLatestRun,
   getLatestDialOverride,
   insertIndexValue,
+  insertBrokerRun,
 } from './_lib/db.js'
 
 // A clean N-second timeout with no DNS/connection error first (as opposed to
@@ -137,6 +139,7 @@ export default async function handler(req, res) {
   // unchanged FRED data AND an unchanged dial override records nothing (the
   // chain logs decisions, not curls). The override is the human-ratified dial
   // from /api/override — The Charter's ratification, applied canonically.
+  let engineRun = null
   if (configured() && fredState?.reading) {
     try {
       const prevRun = await getLatestRun()
@@ -163,6 +166,7 @@ export default async function handler(req, res) {
       } else {
         const run = runEngineStep(prevRun, inputs)
         const inserted = await insertEngineRun(run)
+        if (inserted) engineRun = run
         out.engineRun = {
           seq: run.seq,
           nav: run.nav,
@@ -176,6 +180,49 @@ export default async function handler(req, res) {
     } catch (err) {
       out.ok = false
       out.engineError = String(err.message || err)
+    }
+  }
+
+  // ————— The Alpaca PAPER broker mirror (next-open execution) —————
+  // The paper book decides and fills at the SAME close (docs/RISK_POLICY.md
+  // §5), which no real account can do. This submits the same run's target
+  // weights to a real venue as market-on-open orders, filling at the next
+  // session's opening auction — a price nobody knows at decision time. The
+  // gap between the two books is the measurement: what the same-close
+  // shortcut is worth in dollars.
+  //
+  // Runs ONLY on a freshly-inserted run (a quiet day produced no new
+  // decision, so there is nothing new to mirror), and only when the prices
+  // that priced the decision are in hand. Its own try/catch: the venue is
+  // downstream of everything: a broker outage must never fail the run that
+  // produced the data, and it never feeds back into a decision.
+  out.brokerConfigured = brokerConfigured()
+  if (brokerConfigured() && engineRun && prices) {
+    try {
+      const weights = engineRun.decision.coreTargetWeights
+      if (!weights) throw new Error('run sealed no coreTargetWeights')
+      const step = await stepBroker({ seq: engineRun.seq, weights, prices })
+      const recorded = configured()
+        ? await insertBrokerRun({
+            seq: engineRun.seq,
+            runHash: engineRun.hash,
+            knownAt: engineRun.knownAt,
+            equity: step.equity ?? null,
+            payload: step,
+          })
+        : false
+      out.broker = {
+        recorded,
+        seq: engineRun.seq,
+        equity: step.equity,
+        submitted: step.submitted?.length ?? 0,
+        rejected: step.rejected?.length ?? 0,
+        fillTiming: step.fillTiming,
+      }
+      // A rejection is information, not noise — surface the reasons.
+      if (step.rejected?.length) out.brokerRejections = step.rejected.map((o) => `${o.side} ${o.qty} ${o.ticker}: ${o.reason}`)
+    } catch (err) {
+      out.brokerError = String(err.message || err)
     }
   }
 

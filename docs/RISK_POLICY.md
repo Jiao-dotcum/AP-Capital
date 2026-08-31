@@ -136,6 +136,26 @@ Sealed into each journal record (`risk`):
   gap between them isolates the ceiling regardless. It DOES mean neither
   book's absolute return should be read as "what a live account would have
   earned" without that adjustment.
+- **The next-open broker mirror measures exactly that adjustment.** The same
+  run's Core target weights are also submitted to an **Alpaca paper account**
+  as market-on-open orders (`time_in_force: opg`), so they fill at the *next*
+  session's opening auction — a price nobody knows at decision time. It is
+  gated on its own key pair (`ALPACA_PAPER_KEY_ID` /
+  `ALPACA_PAPER_SECRET_KEY`, deliberately separate from the market-data
+  keys), points at a hard-coded paper host so no configuration mistake can
+  route it at real money, and sizes whole shares off the *real* account
+  equity. It never feeds back into a decision. The broker book will NOT
+  reproduce the paper book's numbers and is not meant to: **the gap between
+  them is what the same-close shortcut is worth, in dollars, on a real
+  venue** — the same logic as the control arm measuring the ruin ceiling
+  instead of assuming it. Orders queued after the close cannot fill until
+  the next open, so fills are reconciled on a *later* run; that lag is real
+  T+1 settlement of information, not a defect.
+  Broker records live in their own append-only table and **cite** the run
+  hash they mirror rather than being sealed inside it — a live venue's
+  equity and fill prices are neither pure nor knowable at hash time, and
+  putting them in the payload would make the chain unverifiable. The link is
+  auditable; the chain stays provable.
 
 ## 6. The audit trail
 
@@ -148,8 +168,11 @@ new records; nothing historical is ever rewritten.
 
 ## 7. What this policy does NOT yet cover (open items)
 
-- Real execution (IBKR paper routing is the next phase; real capital after
-  that requires counsel, an RIA/fund wrapper, and GIPS-aware performance).
+- Real execution beyond the Alpaca paper mirror above (real capital requires
+  counsel, an RIA/fund wrapper, and GIPS-aware performance).
+- The broker mirrors the **Core** mandate only. The Cycle Credit ledger
+  trades issuer-level bonds with no listed proxy, so it has no venue
+  counterpart and stays paper-only.
 - Liquidity risk (all proxies are liquid ETFs by Charter; revisit before
   any less-liquid sleeve).
 - Counterparty/custody risk (no real broker yet).
