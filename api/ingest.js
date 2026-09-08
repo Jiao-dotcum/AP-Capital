@@ -201,7 +201,16 @@ export default async function handler(req, res) {
     try {
       const weights = engineRun.decision.coreTargetWeights
       if (!weights) throw new Error('run sealed no coreTargetWeights')
-      const step = await stepBroker({ seq: engineRun.seq, weights, prices })
+      // Paired against the CONTROL ARM's NAV, not the canonical book's: both
+      // target these same weights, and the broker (like the arm) never
+      // applies the ruin gate — so against the arm exactly one thing differs,
+      // the fill timing. Against the canonical book two would.
+      const step = await stepBroker({
+        seq: engineRun.seq,
+        weights,
+        prices,
+        benchmarkNav: engineRun.shadow?.navEnd ?? null,
+      })
       const recorded = configured()
         ? await insertBrokerRun({
             seq: engineRun.seq,
@@ -218,6 +227,9 @@ export default async function handler(req, res) {
         submitted: step.submitted?.length ?? 0,
         rejected: step.rejected?.length ?? 0,
         fillTiming: step.fillTiming,
+        mirrors: step.mirrors,
+        benchmarkNav: step.benchmarkNav,
+        scaleRatio: step.scaleRatio,
       }
       // A rejection is information, not noise — surface the reasons.
       if (step.rejected?.length) out.brokerRejections = step.rejected.map((o) => `${o.side} ${o.qty} ${o.ticker}: ${o.reason}`)

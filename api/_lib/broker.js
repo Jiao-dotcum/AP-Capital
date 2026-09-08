@@ -9,9 +9,28 @@ import { PROXIES } from '../../src/engine/proxies.js'
 // decision time.
 //
 // It therefore does NOT reproduce the paper book's numbers, and is not meant
-// to. The gap between the two IS the measurement: what the same-close
-// shortcut is worth, in dollars, on a real venue. Same idea as the control
-// arm measuring the ruin ceiling instead of assuming it.
+// to. The gap IS the measurement: what the same-close shortcut is worth, in
+// dollars, on a real venue. Same idea as the control arm measuring the ruin
+// ceiling instead of assuming it.
+//
+// ————— WHICH BOOK THIS MIRRORS: the CONTROL ARM, not the canonical book ——
+// Both books target the SAME weights (`decision.coreTargetWeights`); they
+// differ only in whether compliance halts buys under the 2.5% ruin ceiling.
+// This module never applies that gate, so it has always been a control-arm
+// mirror by construction — but nothing said so, and nothing enforced it.
+// Now it is stated, sealed (`mirrors`), and checked in verify.
+//
+// That is the CORRECT pairing, not a workaround. Comparing the broker to the
+// canonical book would confound TWO differences at once — fill timing AND
+// the ceiling — and the residual would attribute neither. Against the
+// control arm exactly one thing differs: when the fill happens. The
+// benchmark NAV is sealed alongside each submission (`benchmarkNav`) so a
+// later analysis has both sides of the comparison in one row and never has
+// to re-derive which arm it was paired against.
+//
+// It also happens to be the only pairing that produces data right now: with
+// the ceiling breached the canonical book vetoes its buys, so a mirror of it
+// would submit nothing and measure nothing.
 //
 // THE CHARTER. The host below is hard-coded to the paper endpoint. Live keys
 // against it simply fail to authenticate, so no configuration mistake can
@@ -36,11 +55,32 @@ export const seqOfClientOrderId = (id) => {
 
 // ————— Pure transforms —————
 
+// Size to slightly UNDER account equity. A buy is sized off last night's
+// close but fills at the next OPEN: if the market gaps up, an order sized at
+// 100% of equity exceeds buying power and the venue rejects it. Systematic
+// rejection on every gap-up day is not information, it is a broken desk. The
+// buffer costs a little tracking error against the paper book — small next to
+// the gap effect being measured — and is sealed in each record so the
+// analysis can account for it rather than discover it.
+export const CASH_BUFFER = 0.005 // 50bp
+
+// The Charter's Core gross ceiling is 1.0×. This is the last point before
+// orders reach a real venue, so it fails LOUD rather than silently sizing
+// into margin — an overshoot here means something upstream broke the ceiling,
+// and quietly borrowing to honor it is the worst available response.
+export function assertGross(weights) {
+  const gross = Object.values(weights || {}).reduce((s, w) => s + Math.max(0, w || 0), 0)
+  if (gross > 1.0000001) throw new Error(`target gross ${gross.toFixed(6)} exceeds the 1.0x Core ceiling — refusing to submit`)
+  return gross
+}
+
 // Target whole-share counts per ticker from the run's traded weights.
 // WHOLE shares because market-on-open does not accept fractional or notional
 // orders; the rounding residual lands in cash, which is the honest cost of
 // trading a real venue rather than a par-normalized simulation.
 export function targetShares(weights, equity, prices) {
+  assertGross(weights)
+  const investable = equity * (1 - CASH_BUFFER)
   const out = {}
   for (const [sleeve, w] of Object.entries(weights || {})) {
     const proxy = PROXIES[sleeve]
@@ -51,7 +91,7 @@ export function targetShares(weights, equity, prices) {
       out[proxy.ticker] = 0
       continue
     }
-    out[proxy.ticker] = Math.floor((w * equity) / px)
+    out[proxy.ticker] = Math.floor((w * investable) / px)
   }
   return out
 }
@@ -178,7 +218,9 @@ export async function submitNextOpen(orders, seq) {
 // has no record of them. The venue is also the idempotency authority (the
 // deterministic client_order_id), not our database, so a failure to record
 // afterwards still cannot cause a double-submit.
-export async function stepBroker({ seq, weights, prices }) {
+export const MIRRORS = 'control-arm (ruin ceiling off)'
+
+export async function stepBroker({ seq, weights, prices, benchmarkNav = null }) {
   if (!brokerConfigured()) return { configured: false }
 
   const account = await getAccount()
@@ -211,6 +253,16 @@ export async function stepBroker({ seq, weights, prices }) {
     configured: true,
     equity: +equity.toFixed(2),
     fillTiming: 'next-open (market-on-open)',
+    // Which paper book this row is the venue-side counterpart of, and that
+    // book's NAV at the same moment. Sealed together so the comparison can
+    // never be reconstructed against the wrong arm later.
+    mirrors: MIRRORS,
+    benchmarkNav,
+    cashBufferPct: +(CASH_BUFFER * 100).toFixed(2), // held back so a gap-up open can't reject every buy
+    // Scale check. The comparison is only readable in dollars when the two
+    // sides are the same size; below ~0.9 or above ~1.1 read percentages
+    // instead, and fund the paper account to match (docs/BACKEND.md).
+    scaleRatio: Number.isFinite(benchmarkNav) && benchmarkNav > 0 ? +(equity / benchmarkNav).toFixed(3) : null,
     heldBefore: held,
     submitted: submitted.map((o) => ({ ticker: o.ticker, side: o.side, qty: o.qty, clientOrderId: o.clientOrderId })),
     rejected,

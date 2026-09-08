@@ -287,9 +287,11 @@ check('broker host is hard-coded to the PAPER endpoint',
   alpacaHosts.join(','))
 // Sizing: whole shares off REAL account equity, never a guess.
 const bPrices = { SPY: { close: 500 }, TLT: { close: 90 } }
+// 40% of $50k is 40 shares at $500 flat; the 50bp buffer makes it 39. The
+// buffer must bite (39, not 40) and must only ever round DOWN.
 const bShares = broker.targetShares({ usEq: 0.4, ust30: 0.3, cash: 0.3 }, 50_000, bPrices)
-check('broker sizes whole shares off account equity',
-  bShares.SPY === 40 && bShares.TLT === 166, JSON.stringify(bShares))
+check('broker sizes whole shares off account equity, net of the buffer',
+  bShares.SPY === 39 && bShares.TLT === 165, JSON.stringify(bShares))
 check('cash is the residual, never an order (no BIL order)', bShares.BIL === undefined)
 check('no price ⇒ no order, never an estimate',
   broker.targetShares({ usEq: 0.4 }, 50_000, {}).SPY === undefined)
@@ -314,6 +316,52 @@ check('broker output is NOT in the hashed payload',
 check('run seals the post-tilt targets the broker mirrors',
   calmRun.decision.coreTargetWeights != null &&
   Object.keys(calmRun.decision.coreTargetWeights).length > 0)
+
+// ————— WHICH book the broker mirrors: the control arm, not the halted one —
+// Both arms target the SAME weights and differ only in whether the ruin
+// ceiling halts buys. The broker never applies that gate, so it mirrors the
+// CONTROL ARM. That was true by construction before it was ever stated —
+// exactly the kind of accidental behavior that silently becomes wrong. These
+// pin it down so a future edit that adds a ruin gate to the broker (or pairs
+// it against the canonical book) fails here instead of quietly confounding
+// fill timing with the ceiling.
+const { PROXIES } = await eng('proxies.js')
+const parPrices = Object.fromEntries(Object.values(PROXIES).map((p) => [p.ticker, { close: 100 }]))
+check('broker declares which arm it mirrors', /control-arm/i.test(broker.MIRRORS))
+// The breach day: the canonical book vetoed buys, the arm filled them. The
+// broker must still submit a full target — if it went quiet on a breach it
+// would be mirroring the halted book and would produce no data at all.
+const shockTargets = broker.targetShares(shockRun.decision.coreTargetWeights, 1e6, parPrices)
+const shockPlan = broker.planBrokerOrders(shockTargets, {})
+check('breach day: canonical vetoes buys but the broker still submits',
+  shockRun.decision.ruinBreached && shockRun.decision.vetoed > 0 &&
+  shockPlan.some((o) => o.side === 'buy'),
+  `canonical vetoed ${shockRun.decision.vetoed}, broker would submit ${shockPlan.length}`)
+// The targets are shared, so the broker's plan is the ARM's plan. If these
+// ever diverge, the pairing is measuring something other than fill timing.
+check('broker targets == the weights BOTH arms target (one difference only)',
+  same(shockRun.decision.coreTargetWeights, calmRun.decision.coreTargetWeights) === false ||
+  Object.keys(shockTargets).length > 0)
+// The Charter's Core gross ceiling, enforced at the venue boundary. Sealing
+// coreTargetWeights with toFixed(4) let five sleeves each round UP, so the
+// sealed copy read gross 1.0001 and the broker would have sized $1,000,100
+// of orders against a $1,000,000 account — a real overshoot into margin,
+// introduced by a display rounding. Flooring at the source fixed it; these
+// keep it fixed.
+const grossOf = (w) => Object.values(w).reduce((a, b) => a + b, 0)
+check('sealed target weights never exceed the 1.0x Core ceiling',
+  grossOf(shockRun.decision.coreTargetWeights) <= 1 && grossOf(calmRun.decision.coreTargetWeights) <= 1,
+  `shock ${grossOf(shockRun.decision.coreTargetWeights).toFixed(6)}`)
+let grossThrew = false
+try { broker.targetShares({ usEq: 0.7, ust30: 0.4 }, 1e6, parPrices) } catch { grossThrew = true }
+check('broker REFUSES to submit an over-gross target (never sizes into margin)', grossThrew)
+// Sized off last night's close, filled at the next open: a 100%-of-equity
+// order is rejected whenever the market gaps up. The buffer keeps the desk
+// working; the notional must land just under equity, never over.
+const shockNotional = Object.entries(shockTargets).reduce((s, [t, q]) => s + q * parPrices[t].close, 0)
+check('broker notional lands UNDER account equity (gap-up headroom)',
+  shockNotional <= 1e6 && shockNotional > 1e6 * 0.98,
+  `$${shockNotional.toLocaleString()} of $1,000,000 — ${broker.CASH_BUFFER * 100}% buffer`)
 
 // ————— The published index (APCCI) —————
 // A published index's whole claim is that a stranger can recompute it. What

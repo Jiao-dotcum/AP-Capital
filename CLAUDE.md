@@ -216,7 +216,14 @@ function. Never advance the world any other way.
   `_lib/broker.js` (**the Alpaca PAPER broker**: mirrors each fresh run's
   `decision.coreTargetWeights` to a real venue as market-on-open orders
   (`opg`), so fills land at the NEXT open instead of the same close — the gap
-  between it and the paper book prices the same-close shortcut. Host
+  prices the same-close shortcut. It mirrors **the control arm, not the
+  canonical book** (`MIRRORS`), and seals the arm's NAV as `benchmarkNav`:
+  both books target the same weights and differ only in the ruin gate, which
+  the broker never applies, so this pairing leaves exactly ONE difference
+  (fill timing) where pairing against the canonical book would confound two.
+  Sizes to `1 − CASH_BUFFER` (99.5%) of equity because an order sized off
+  last night's close at 100% is rejected on a gap-up open; `assertGross`
+  refuses an over-gross target rather than sizing into margin. Host
   hard-coded to `paper-api.alpaca.markets`; gated on its own
   `ALPACA_PAPER_KEY_ID`/`ALPACA_PAPER_SECRET_KEY` pair, never the market-data
   keys. Deliberately **outside** the hash chain — a live venue's equity and
@@ -392,6 +399,20 @@ unless it follows the rule.
   handled, not just the common case. Caught by a fixture BEFORE shipping,
   not in production, by writing the "a name leaves the universe" test the
   same day the universe became variable.*
+- **The rounding that breached the ceiling.** `coreTargetWeights` was sealed
+  with `+v.toFixed(4)` purely for readability. Five sleeves each rounding UP
+  by up to 0.00005 made the sealed copy read gross **1.0001** while the book
+  it described was exactly 1.0 — and that sealed copy is the one number a
+  real broker sizes from, so it would have submitted $1,000,100 of orders
+  against a $1,000,000 account and borrowed the difference. A Charter
+  invariant (Core gross ≤ 1.0×) breached by a display convenience, in the
+  hand-off between a simulation that tolerates it and a venue that does not.
+  → *Rule: any number that crosses from the simulation into an order is
+  rounded in the direction the constraint binds — floor a quantity under a
+  ceiling, never round-to-nearest — and the boundary asserts the invariant
+  itself (`assertGross` throws rather than sizing into margin). Corollary:
+  when a value acquires a second consumer, re-audit every cosmetic decision
+  made when it had one.*
 - **"fetch failed" says nothing.** Node/undici buries the real network error
   in `err.cause` and reports the useless string "fetch failed". → *Rule:
   every server-side fetch wrapper catches, surfaces `err.cause.code`, and

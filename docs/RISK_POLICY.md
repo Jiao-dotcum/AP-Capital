@@ -151,6 +151,16 @@ Sealed into each journal record (`risk`):
   instead of assuming it. Orders queued after the close cannot fill until
   the next open, so fills are reconciled on a *later* run; that lag is real
   T+1 settlement of information, not a defect.
+  **It mirrors the control arm (§4.2), not the canonical book**, and is
+  benchmarked against the arm's NAV. Both books target identical weights and
+  differ only in whether the ruin ceiling halts buys; the broker does not
+  apply that gate, so pairing it with the arm leaves exactly ONE difference —
+  fill timing — while pairing it with the canonical book would confound fill
+  timing with the ceiling and attribute neither. Each record seals which arm
+  it mirrored, that arm's NAV, and the scale ratio between them. It sizes to
+  99.5% of equity: an order sized off last night's close at 100% of equity is
+  rejected whenever the open gaps up, and a target whose gross exceeds the
+  1.0× Core ceiling is refused outright rather than sized into margin.
   Broker records live in their own append-only table and **cite** the run
   hash they mirror rather than being sealed inside it — a live venue's
   equity and fill prices are neither pure nor knowable at hash time, and

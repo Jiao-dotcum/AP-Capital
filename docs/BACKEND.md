@@ -239,14 +239,40 @@ ruin ceiling instead of assuming it.
 
 1. **Get paper-trading keys** at alpaca.markets → Paper Trading → API Keys.
    These are *different* keys from the market-data pair already configured.
-2. **Set two env vars** in Vercel (Production):
+2. **Fund the paper account to $1,000,000** (Alpaca → Paper Trading → Reset
+   Account, set the starting balance). This matters: the paper books carry
+   $1M NAV, and the comparison is only readable in dollars when both sides
+   are the same size. Each broker record seals a `scaleRatio` (account equity
+   ÷ benchmark NAV) — outside roughly 0.9–1.1, read percentages instead.
+3. **Set two env vars** in Vercel (Production):
    - `ALPACA_PAPER_KEY_ID`
    - `ALPACA_PAPER_SECRET_KEY`
    Deliberately separate names: having market data working must never imply
    order submission is on.
-3. **Redeploy**, then run the ingest. Look for
+4. **Redeploy**, then run the ingest. Look for
    `"broker": { "recorded": true, "equity": ..., "submitted": N,
-   "fillTiming": "next-open (market-on-open)" }`.
+   "fillTiming": "next-open (market-on-open)",
+   "mirrors": "control-arm (ruin ceiling off)", "scaleRatio": ~1.0 }`.
+
+**Which book it mirrors: the CONTROL ARM.** Both Core books target the same
+weights (`decision.coreTargetWeights`) and differ only in whether compliance
+halts buys under the 2.5% ruin ceiling. The broker never applies that gate,
+so it is a control-arm mirror. That is the correct pairing, not a workaround:
+comparing it to the canonical book would confound two differences at once —
+fill timing *and* the ceiling — and the residual would attribute neither.
+Against the control arm exactly one thing differs, which is the whole point.
+It is also the only pairing that produces data while the ceiling is breached,
+since a mirror of the halted book would submit nothing.
+
+**The 50bp cash buffer.** Orders are sized off last night's close but fill at
+the next open. An order sized at 100% of equity exceeds buying power whenever
+the market gaps up, and the venue rejects it — systematic rejection on every
+gap-up day is a broken desk, not information. The broker therefore sizes to
+99.5% of equity. It costs a little tracking error against the paper book
+(small next to the gap effect being measured) and is sealed as
+`cashBufferPct` in every record so the analysis accounts for it rather than
+discovering it. Over-gross targets are refused outright rather than sized
+into margin.
 
 **Safety, by construction:**
 
@@ -276,6 +302,15 @@ stays provable.
 **Reading fills.** An order queued after the close cannot fill until the next
 open, so `submitted` on run N is confirmed by `recentFills` on run N+1.
 That lag is real, not a defect.
+
+**Open decision — chaining `broker_runs` (revisit after ~30 days of fills).**
+Broker rows are append-only but NOT hash-chained, so unlike the engine
+journal they are tamper-evident only by database convention. That is
+acceptable while this is a measurement nobody is being shown. It stops being
+acceptable the moment the broker book is presented as a track record: at that
+point it needs its own chain (it cannot join the engine chain — see "Why it
+is not in the hash chain" above). Deferred deliberately until there are
+enough fills to know whether the number is worth publishing at all.
 
 ### The dial override (human ratification, canonical)
 

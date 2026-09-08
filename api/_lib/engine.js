@@ -195,8 +195,15 @@ export function runEngineStep(prevRun, { reading, hyOasBp = null, knownAt, price
     // What the book actually targeted: risk parity WITH the Pure Alpha tilt,
     // long-only clamped, gross ≤ 1. rpWeights above is the pre-overlay input,
     // so anything mirroring the traded book (the broker) must use THIS.
+    //
+    // FLOORED to 4dp, not rounded. Rounding to nearest let five sleeves each
+    // round UP by up to 0.00005, so the sealed copy read gross 1.0001 while
+    // the book it described was exactly 1.0 — a display convenience quietly
+    // breaching the Charter's gross ceiling in the one number a real broker
+    // would size from. Flooring can only ever understate gross, never
+    // overstate it, which is the direction a hard ceiling must round.
     coreTargetWeights: Object.fromEntries(
-      Object.entries(coreTargets(rp.weights, pa.tilt)).map(([k, v]) => [k, +v.toFixed(4)]),
+      Object.entries(coreTargets(rp.weights, pa.tilt)).map(([k, v]) => [k, Math.floor(v * 1e4) / 1e4]),
     ),
     pureAlpha: { fired: pa.fired, gross: pa.gross, tilt: pa.tilt }, // the overlay actually traded
     gross: +rp.gross.toFixed(3), // fixed CORE_GROSS by construction
